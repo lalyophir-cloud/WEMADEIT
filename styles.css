@@ -183,3 +183,21 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
   max-width: calc(100% - 32px); text-align: center; animation: pop .25s ease-out;
 }
 @keyframes pop { from { transform: translate(-50%, -10px); opacity: 0; } }
+
+/* בנק משימות */
+.chips { display: flex; gap: 6px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chips button { flex-shrink: 0; min-height: 40px; border: 0; border-radius: 999px; background: var(--card); padding: 0 14px; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+.chips button.on { background: var(--ink); color: var(--bg); }
+.cdot { width: 10px; height: 10px; border-radius: 50%; }
+.abank { display: flex; flex-direction: column; gap: 10px; }
+.ahead { display: flex; align-items: center; gap: 10px; }
+.ahead h2 { flex: 1; font-family: var(--serif); font-size: 22px; }
+.goal { background: var(--card); border-radius: 22px; padding: 14px; }
+.goal summary { list-style: none; cursor: pointer; }
+.goal summary::-webkit-details-marker { display: none; }
+.gs { display: flex; flex-direction: column; gap: 6px; }
+.gs b { font-size: 16px; }
+.goal[open] summary { margin-bottom: 10px; }
+.goal .trow { background: var(--bg); }
+.why { font-size: 14px; color: var(--muted); margin-bottom: 10px; }
