@@ -67,8 +67,6 @@ h2.serif.sm { font-size: 20px; margin-top: 8px; }
 .card.hero { border-radius: 28px; padding: 20px; }
 .chip { display: inline-block; font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; background: var(--pink); }
 .chip.light { background: rgba(255,255,255,.6); align-self: flex-start; font-size: 13px; }
-.title-in { border: 0; background: transparent; font-family: var(--serif); font-weight: 700; font-size: 26px; width: 100%; padding: 0; }
-.title-in:focus { outline: 2px solid rgba(0,0,0,.2); border-radius: 8px; }
 
 /* כפתורים */
 .pill { height: 44px; padding: 0 20px; border: 0; border-radius: 999px; font-size: 15px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; color: var(--ink); align-self: flex-start; }
@@ -201,3 +199,11 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .goal[open] summary { margin-bottom: 10px; }
 .goal .trow { background: var(--bg); }
 .why { font-size: 14px; color: var(--muted); margin-bottom: 10px; }
+
+/* משימה: להזיז ולערוך */
+.task-title { font-size: 26px; }
+.when { font-size: 15px; font-weight: 500; }
+.pill.white { background: rgba(255,255,255,.75); }
+.quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.quick button { min-height: 44px; border: 0; border-radius: 999px; background: var(--line); padding: 0 16px; font-size: 15px; }
+.quick button:active { background: var(--ink); color: var(--bg); }

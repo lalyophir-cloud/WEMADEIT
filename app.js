@@ -593,13 +593,39 @@ function viewTask() {
   if (!x) return `${topBack()}<p class="empty">המשימה לא נמצאה.</p>`;
   const a = area(x.area), g = goal(x.goalId);
   const late = isLate(x);
+  const tog = togetherFor(x);
+  const quick = [['today', 'היום'], ['tomorrow', 'מחר']];
+  if (tog) quick.push(['together', `💛 ביום המשותף (${DAYS[pd(tog).getDay()]})`]);
+  quick.push(['nextweek', 'לשבוע הבא'], ['none', 'בלי תאריך']);
+  const weeks = [...new Set([...(S.planWeeks || []), ...planWeeks(), x.week])].filter((w) => w >= weekOf(today()) || w === x.week).sort();
+  if (ui.edit) {
+    return `${topBack('חזרה', V.from || 'home')}
+    <h1 class="serif">עריכת המשימה</h1>
+    <div class="field"><label for="etitle">מה עושים?</label><input id="etitle" type="text" value="${esc(x.title)}"></div>
+    <div class="field"><label for="earea">תחום</label><select id="earea">${AREAS.map((y) => `<option value="${y.id}"${y.id === x.area ? ' selected' : ''}>${y.icon} ${y.name}</option>`).join('')}</select></div>
+    ${S.goals.length ? `<div class="field"><label for="egoal">מטרה</label><select id="egoal"><option value="">בלי</option>${S.goals.map((y) => `<option value="${y.id}"${y.id === x.goalId ? ' selected' : ''}>${esc(area(y.area).name)}: ${esc(y.title)}</option>`).join('')}</select></div>` : ''}
+    <label class="toggle"><input id="etog" type="checkbox" ${x.together ? 'checked' : ''}> מתאים ליום המשותף ⭐</label>
+    <div class="row-btns"><button class="pill light" data-act="editCancel">ביטול</button><button class="pill dark" data-act="editSave">שמירה</button></div>
+    <button class="pill light wide danger" data-act="delTask">מחיקת המשימה</button>`;
+  }
   return `${topBack('חזרה', V.from || 'home')}
   <div class="card hero" style="background:${a.color}">
     <span class="chip light">${a.icon} ${a.name}</span>
-    <input class="title-in" value="${esc(x.title)}" data-ch="title" aria-label="שם המשימה">
+    <h1 class="serif task-title">${x.together ? '⭐ ' : ''}${esc(x.title)}</h1>
     ${g ? `<span class="small">מטרה: ${esc(g.title)}</span>` : ''}
+    <span class="when">📅 ${esc(whenText(x))}</span>
+    <button class="pill white" data-act="edit">✏️ עריכה</button>
   </div>
-  ${late ? `<div class="card late-card"><b>המשימה הזו נדחתה, וזה בסדר.</b><p>${t('מה הצעד הכי קטן שאפשר לעשות כבר היום? {תכתבי|תכתוב} אותו למטה.')}</p></div>` : ''}
+  ${late ? `<div class="card late-card"><b>המשימה הזו נדחתה, וזה בסדר.</b><p>${t('אפשר להזיז אותה למטה, או לפרק אותה: מה הצעד הכי קטן שאפשר לעשות כבר היום?')}</p></div>` : ''}
+  <section class="card move">
+    <h3>להזיז את המשימה</h3>
+    <div class="quick">${quick.map(([k, l]) => `<button data-act="move" data-to="${k}">${l}</button>`).join('')}</div>
+    <div class="two">
+      <div class="field"><label for="tdate">תאריך אחר</label><input id="tdate" type="date" value="${x.date || ''}" data-ch="date"></div>
+      <div class="field"><label for="ttm">שעה</label><input id="ttm" type="time" value="${x.time || ''}" data-ch="time"></div>
+    </div>
+    ${!x.date ? `<div class="field"><label for="tweek">או רק לבחור שבוע</label><select id="tweek" data-ch="week">${weeks.map((w) => `<option value="${w}"${w === x.week ? ' selected' : ''}>שבוע ${weekNum(w)} · ${weekRange(w)}${w === weekOf(today()) ? ' (השבוע)' : ''}</option>`).join('')}</select></div>` : ''}
+  </section>
   <div class="field"><label>מצב</label><div class="seg">
     ${[['todo', 'לא התחיל'], ['doing', 'בתהליך'], ['done', 'בוצע']].map(([k, l]) => `<button class="${x.status === k ? 'on' : ''}" data-act="status" data-s="${k}">${l}</button>`).join('')}
   </div></div>
@@ -607,15 +633,21 @@ function viewTask() {
     <div class="subs">${x.subs.map((s) => `<div class="sub"><button class="check sm s-${s.done ? 'done' : 'todo'}" data-act="subToggle" data-sid="${s.id}" aria-label="סימון">${s.done ? icon('check', 13) : ''}</button><span class="${s.done ? 'strike' : ''}">${esc(s.title)}</span><button class="x" data-act="subDel" data-sid="${s.id}" aria-label="מחיקה">×</button></div>`).join('')}</div>
     <div class="add-sub"><input id="subin" type="text" placeholder="צעד קטן חדש" ${V.split ? 'data-autofocus' : ''}><button class="pill pink" data-act="subAdd">+ הוספה</button></div>
   </div>
-  <div class="two">
-    <div class="field"><label for="tdate">תאריך</label><input id="tdate" type="date" value="${x.date || ''}" data-ch="date"></div>
-    <div class="field"><label for="ttm">שעה</label><input id="ttm" type="time" value="${x.time || ''}" data-ch="time"></div>
-  </div>
-  <label class="toggle"><input type="checkbox" ${x.together ? 'checked' : ''} data-ch="together"> מתאים ליום המשותף ⭐</label>
-  <div class="stack">
-    <button class="pill light wide" data-act="nextWeek">להעביר לשבוע הבא</button>
-    <button class="pill light wide danger" data-act="delTask">מחיקת המשימה</button>
-  </div>`;
+  `;
+}
+
+function whenText(x) {
+  if (x.date) return `${fmtDay(x.date)}${x.time ? `, ${x.time}` : ''}`;
+  return `שבוע ${weekNum(x.week)} (${weekRange(x.week)}), עוד לא נקבע יום`;
+}
+
+// היום המשותף הקרוב שאפשר להזיז אליו: בשבוע של המשימה, ואם עבר, בשבוע הנוכחי
+function togetherFor(x) {
+  for (const w of [weekOf(x.date || x.week), weekOf(today()), addDays(weekOf(today()), 7)]) {
+    const d = (S.weeks[w] || {}).together;
+    if (d && d !== 'none' && d >= today()) return d;
+  }
+  return null;
 }
 
 function viewAdd() {
@@ -700,7 +732,27 @@ const ACT = {
   },
   subToggle: (d) => { const s = task(V.id).subs.find((y) => y.id === d.sid); s.done = !s.done; save(); if (s.done) toast('צעד קטן, ניצחון גדול ✨'); else render(); },
   subDel: (d) => { const x = task(V.id); x.subs = x.subs.filter((y) => y.id !== d.sid); save(); render(); },
-  nextWeek: () => { const x = task(V.id); x.week = addDays(weekOf(x.date || (x.week < weekOf(today()) ? today() : x.week)), 7); x.date = null; x.time = null; save(); go(V.from || 'home'); toast('הועבר לשבוע הבא'); },
+  edit: () => { ui.edit = true; render(); window.scrollTo(0, 0); },
+  editCancel: () => { ui.edit = false; render(); },
+  editSave: () => {
+    const x = task(V.id);
+    const title = document.getElementById('etitle').value.trim();
+    if (!title) { toast('צריך לכתוב מה עושים 🙂'); return; }
+    const gEl = document.getElementById('egoal');
+    x.title = title;
+    x.goalId = (gEl && gEl.value) || null;
+    x.area = x.goalId ? goal(x.goalId).area : document.getElementById('earea').value;
+    x.together = document.getElementById('etog').checked;
+    save(); ui.edit = false; toast('נשמר ✓');
+  },
+  move: (d) => {
+    const x = task(V.id);
+    const to = { today: today(), tomorrow: addDays(today(), 1), together: togetherFor(x) }[d.to];
+    if (to) { x.date = to; x.week = weekOf(to); }
+    else if (d.to === 'nextweek') { x.week = addDays(weekOf(today()), 7); x.date = null; x.time = null; }
+    else if (d.to === 'none') { x.date = null; x.time = null; if (x.week < weekOf(today())) x.week = weekOf(today()); }
+    save(); toast(`הוזז: ${whenText(x)}`);
+  },
   delTask: () => { if (!confirm('למחוק את המשימה?')) return; S.tasks = S.tasks.filter((y) => y.id !== V.id); save(); go(V.from || 'home'); },
   addTask: () => {
     const title = document.getElementById('ntitle').value.trim();
@@ -729,10 +781,9 @@ const IN = {
 };
 const CH = {
   ttime: (el) => { const w = el.dataset.w; S.weeks[w] = { ...(S.weeks[w] || {}), time: el.value.trim() }; save(); },
-  title: (el) => { const v = el.value.trim(); if (v) { task(V.id).title = v; save(); } },
-  date: (el) => { const x = task(V.id); x.date = el.value || null; if (x.date) x.week = weekOf(x.date); save(); render(); },
-  time: (el) => { task(V.id).time = el.value || null; save(); },
-  together: (el) => { task(V.id).together = el.checked; save(); },
+  date: (el) => { const x = task(V.id); x.date = el.value || null; if (x.date) x.week = weekOf(x.date); save(); toast(`הוזז: ${whenText(x)}`); },
+  time: (el) => { const x = task(V.id); x.time = el.value || null; save(); if (x.date) toast(`הוזז: ${whenText(x)}`); },
+  week: (el) => { const x = task(V.id); x.week = el.value; x.date = null; x.time = null; save(); toast(`הוזז: ${whenText(x)}`); },
 };
 
 app.addEventListener('click', (e) => {
