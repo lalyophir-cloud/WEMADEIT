@@ -313,7 +313,7 @@ function viewWelcome() {
     <p class="lead">מי נכנס עכשיו?</p>
     <div class="who">
       <button class="big" style="background:#F4B6D2" data-act="pickUser" data-u="lali">ללי</button>
-      <button class="big" style="background:#B9CDEB" data-act="pickUser" data-u="omri">עומרי</button>
+      <button class="big" style="background:#B9CDEB" data-act="pickUser" data-u="omri">עמרי</button>
     </div>
     <p class="muted small">כל אחד משתמש בטלפון שלו, והמידע נשמר אצלו.</p>
   </main>`;

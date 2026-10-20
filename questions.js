@@ -64,6 +64,6 @@ export const SCHEDULE = { id: 'schedule', name: 'הלו"ז שלי', icon: '📅'
 ] };
 
 export const USERS = {
-  lali: { id: 'lali', name: 'ללי', g: 'f', partner: 'עומרי' },
-  omri: { id: 'omri', name: 'עומרי', g: 'm', partner: 'ללי' },
+  lali: { id: 'lali', name: 'ללי', g: 'f', partner: 'עמרי' },
+  omri: { id: 'omri', name: 'עמרי', g: 'm', partner: 'ללי' },
 };
