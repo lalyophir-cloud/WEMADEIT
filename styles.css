@@ -211,3 +211,4 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .quick button.on { background: var(--ink); color: var(--bg); }
 .daypick.seven { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .count { font-weight: 500; background: #FFF6D6; border-radius: 14px; padding: 10px 14px; }
+.center { text-align: center; }

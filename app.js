@@ -2,6 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
+const VERSION = '21.10 · משימות חוזרות';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1 });
 let S = load();
 function load() {
@@ -499,7 +500,8 @@ function viewMe() {
     ${S.qDone ? '<button class="pill light wide" data-act="go" data-v="plan">לבנות את התוכנית מחדש עם Claude</button>' : ''}
     <button class="pill light wide" data-act="go" data-v="weekly">תכנון שבועי</button>
     <button class="pill light wide" data-act="go" data-v="backup">גיבוי ושחזור</button>
-  </div>`;
+  </div>
+  <p class="muted small center">גרסה: ${VERSION}</p>`;
 }
 
 function viewQuest() {
@@ -883,4 +885,10 @@ app.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id ==
 
 render();
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+if ('serviceWorker' in navigator) {
+  // כשיש גרסה חדשה, טוענים אותה מיד
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((r) => r.update()).catch(() => {});
+}
