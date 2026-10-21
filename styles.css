@@ -143,7 +143,8 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .seg { display: flex; background: var(--line); border-radius: 999px; padding: 4px; gap: 4px; }
 .seg button { flex: 1; min-height: 40px; border: 0; background: none; border-radius: 999px; font-size: 14px; padding: 4px 8px; }
 .seg button.on { background: var(--card); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.two input { min-width: 0; }
 .toggle { display: flex; gap: 10px; align-items: center; font-size: 15px; min-height: 44px; }
 .toggle input { width: 22px; height: 22px; accent-color: var(--ink); }
 .subs { display: flex; flex-direction: column; gap: 6px; }
@@ -207,3 +208,6 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .quick { display: flex; flex-wrap: wrap; gap: 8px; }
 .quick button { min-height: 44px; border: 0; border-radius: 999px; background: var(--line); padding: 0 16px; font-size: 15px; }
 .quick button:active { background: var(--ink); color: var(--bg); }
+.quick button.on { background: var(--ink); color: var(--bg); }
+.daypick.seven { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.count { font-weight: 500; background: #FFF6D6; border-radius: 14px; padding: 10px 14px; }

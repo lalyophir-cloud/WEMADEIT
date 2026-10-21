@@ -27,6 +27,7 @@ const addDays = (s, n) => { const d = pd(s); d.setDate(d.getDate() + n); return 
 const weekOf = (s) => addDays(s, -pd(s).getDay());
 const END = '2026-12-31';
 const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+const DAY_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
 const MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 const short = (s) => { const d = pd(s); return `${d.getDate()}.${d.getMonth() + 1}`; };
 const fmtDay = (s) => { const d = pd(s); return `יום ${DAYS[d.getDay()]}, ${d.getDate()} ב${MONTHS[d.getMonth()]}`; };
@@ -419,7 +420,7 @@ function viewMonth() {
     <span><b>${MONTHS[mo - 1]} ${y}</b>${monthAll.length ? `<small>${pct(monthAll)}% בוצע</small>` : ''}</span>
     <button class="round" data-act="month" data-m="${next}" aria-label="חודש הבא">${icon('next', 20)}</button>
   </div>
-  <div class="cal">${DAYS.map((d) => `<span class="dow">${d[0]}'</span>`).join('')}${cells.join('')}</div>
+  <div class="cal">${DAY_LETTERS.map((d) => `<span class="dow">${d}'</span>`).join('')}${cells.join('')}</div>
   <h2 class="serif sm">${fmtDay(sel)}</h2>
   ${selList.length ? `<div class="list">${selList.map((x) => taskRow(x)).join('')}</div>` : '<p class="empty">אין משימות ביום הזה.</p>'}`;
 }
@@ -601,12 +602,14 @@ function viewTask() {
   if (ui.edit) {
     return `${topBack('חזרה', V.from || 'home')}
     <h1 class="serif">עריכת המשימה</h1>
-    <div class="field"><label for="etitle">מה עושים?</label><input id="etitle" type="text" value="${esc(x.title)}"></div>
+    <div class="field"><label for="etitle">מה עושים?</label><input id="etitle" type="text" value="${esc(x.series ? x.base : x.title)}"></div>
     <div class="field"><label for="earea">תחום</label><select id="earea">${AREAS.map((y) => `<option value="${y.id}"${y.id === x.area ? ' selected' : ''}>${y.icon} ${y.name}</option>`).join('')}</select></div>
     ${S.goals.length ? `<div class="field"><label for="egoal">מטרה</label><select id="egoal"><option value="">בלי</option>${S.goals.map((y) => `<option value="${y.id}"${y.id === x.goalId ? ' selected' : ''}>${esc(area(y.area).name)}: ${esc(y.title)}</option>`).join('')}</select></div>` : ''}
     <label class="toggle"><input id="etog" type="checkbox" ${x.together ? 'checked' : ''}> מתאים ליום המשותף ⭐</label>
+    ${x.series ? `<label class="toggle"><input id="eall" type="checkbox" checked> לשנות גם בכל החזרות הבאות 🔁</label>` : ''}
     <div class="row-btns"><button class="pill light" data-act="editCancel">ביטול</button><button class="pill dark" data-act="editSave">שמירה</button></div>
-    <button class="pill light wide danger" data-act="delTask">מחיקת המשימה</button>`;
+    <button class="pill light wide danger" data-act="delTask">${x.series ? 'למחוק רק את המשימה הזו' : 'מחיקת המשימה'}</button>
+    ${x.series ? '<button class="pill light wide danger" data-act="delSeries">למחוק אותה ואת כל החזרות הבאות</button>' : ''}`;
   }
   return `${topBack('חזרה', V.from || 'home')}
   <div class="card hero" style="background:${a.color}">
@@ -614,6 +617,7 @@ function viewTask() {
     <h1 class="serif task-title">${x.together ? '⭐ ' : ''}${esc(x.title)}</h1>
     ${g ? `<span class="small">מטרה: ${esc(g.title)}</span>` : ''}
     <span class="when">📅 ${esc(whenText(x))}</span>
+    ${x.rep ? `<span class="small">🔁 חוזרת: ${esc(x.rep)}</span>` : ''}
     <button class="pill white" data-act="edit">✏️ עריכה</button>
   </div>
   ${late ? `<div class="card late-card"><b>המשימה הזו נדחתה, וזה בסדר.</b><p>${t('אפשר להזיז אותה למטה, או לפרק אותה: מה הצעד הכי קטן שאפשר לעשות כבר היום?')}</p></div>` : ''}
@@ -636,6 +640,12 @@ function viewTask() {
   `;
 }
 
+// המשימה הזו וכל החזרות שאחריה שעוד לא בוצעו
+function seriesFrom(x) {
+  const key = (y) => y.date || y.week;
+  return S.tasks.filter((y) => y === x || (x.series && y.series === x.series && y.status !== 'done' && key(y) >= key(x)));
+}
+
 function whenText(x) {
   if (x.date) return `${fmtDay(x.date)}${x.time ? `, ${x.time}` : ''}`;
   return `שבוע ${weekNum(x.week)} (${weekRange(x.week)}), עוד לא נקבע יום`;
@@ -650,15 +660,74 @@ function togetherFor(x) {
   return null;
 }
 
+const REPS = [['once', 'פעם אחת'], ['daily', 'כל יום'], ['days', 'בימים קבועים'], ['weekly', 'כמה פעמים בשבוע'], ['monthly', 'פעם בחודש']];
+
 function viewAdd() {
+  const f = ui.add || (ui.add = { title: '', area: AREAS[0].id, goal: V.g || '', together: false, rep: 'once', date: '', time: '', days: [], n: 3, start: today(), end: END });
+  const count = repeatDates(f).length;
   return `${topBack()}
   <h1 class="serif">משימה חדשה</h1>
-  <div class="field"><label for="ntitle">מה עושים?</label><input id="ntitle" type="text" data-autofocus></div>
-  <div class="field"><label for="narea">תחום</label><select id="narea">${AREAS.map((a) => `<option value="${a.id}">${a.icon} ${a.name}</option>`).join('')}</select></div>
-  ${S.goals.length ? `<div class="field"><label for="ngoal">מטרה (לא חובה)</label><select id="ngoal"><option value="">בלי</option>${S.goals.map((g) => `<option value="${g.id}"${V.g === g.id ? ' selected' : ''}>${esc(area(g.area).name)}: ${esc(g.title)}</option>`).join('')}</select></div>` : ''}
-  <div class="field"><label for="ndate">תאריך (לא חובה)</label><input id="ndate" type="date"></div>
-  <label class="toggle"><input id="ntog" type="checkbox"> מתאים ליום המשותף ⭐</label>
+  <div class="field"><label for="ntitle">מה עושים?</label><input id="ntitle" type="text" value="${esc(f.title)}" data-in="add" data-f="title" ${f.title ? '' : 'data-autofocus'}></div>
+  <div class="field"><label for="narea">תחום</label><select id="narea" data-in="add" data-f="area">${AREAS.map((a) => `<option value="${a.id}"${f.area === a.id ? ' selected' : ''}>${a.icon} ${a.name}</option>`).join('')}</select></div>
+  ${S.goals.length ? `<div class="field"><label for="ngoal">מטרה (לא חובה)</label><select id="ngoal" data-in="add" data-f="goal"><option value="">בלי</option>${S.goals.map((g) => `<option value="${g.id}"${f.goal === g.id ? ' selected' : ''}>${esc(area(g.area).name)}: ${esc(g.title)}</option>`).join('')}</select></div>` : ''}
+  <section class="card move">
+    <h3>🔁 כל כמה זמן?</h3>
+    <div class="quick">${REPS.map(([k, l]) => `<button class="${f.rep === k ? 'on' : ''}" data-act="addRep" data-r="${k}">${l}</button>`).join('')}</div>
+    ${f.rep === 'once' ? `<div class="two">
+      <div class="field"><label for="ndate">תאריך (לא חובה)</label><input id="ndate" type="date" value="${f.date}" data-in="add" data-f="date"></div>
+      <div class="field"><label for="ntime">שעה</label><input id="ntime" type="time" value="${f.time}" data-in="add" data-f="time"></div></div>` : ''}
+    ${f.rep === 'days' ? `<div class="field"><label>באילו ימים?</label><div class="daypick seven">${DAYS.map((d, i) => `<button class="${f.days.includes(i) ? 'on' : ''}" data-act="addDay" data-d="${i}" aria-label="יום ${d}"><b>${DAY_LETTERS[i]}'</b></button>`).join('')}</div></div>` : ''}
+    ${f.rep === 'weekly' ? `<div class="field"><label>כמה פעמים בשבוע?</label><div class="quick">${[1, 2, 3, 4, 5].map((n) => `<button class="${f.n === n ? 'on' : ''}" data-act="addN" data-n="${n}">${n}</button>`).join('')}</div>
+      <p class="muted small">את הימים עצמם בוחרים בתכנון השבועי של מוצ"ש.</p></div>` : ''}
+    ${f.rep !== 'once' ? `<div class="two">
+      <div class="field"><label for="nstart">מתחילים מ</label><input id="nstart" type="date" value="${f.start}" data-in="add" data-f="start"></div>
+      <div class="field"><label for="nend">עד</label><input id="nend" type="date" value="${f.end}" data-in="add" data-f="end"></div></div>
+      ${f.rep !== 'weekly' ? `<div class="field"><label for="ntime2">שעה (לא חובה)</label><input id="ntime2" type="time" value="${f.time}" data-in="add" data-f="time"></div>` : ''}
+      <p class="count">${count ? `ייווצרו ${count} משימות, ${esc(repText(f))}` : 'עוד לא נבחר מתי'}</p>` : ''}
+  </section>
+  <label class="toggle"><input type="checkbox" ${f.together ? 'checked' : ''} data-in="add" data-f="together"> מתאים ליום המשותף ⭐</label>
   <button class="pill dark wide" data-act="addTask">הוספה</button>`;
+}
+
+// כל המופעים של משימה חוזרת. מופע בלי תאריך מסומן עם week בלבד.
+function repeatDates(f) {
+  if (f.rep === 'once') return [{ date: f.date || null, week: weekOf(f.date || today()) }];
+  const out = [];
+  const start = f.start || today(), end = f.end || END;
+  if (end < start) return out;
+  if (f.rep === 'weekly') {
+    for (let w = weekOf(start); w <= end && out.length < 400; w = addDays(w, 7)) {
+      for (let i = 1; i <= f.n; i++) out.push({ date: null, week: w, suffix: f.n > 1 ? ` (${i}/${f.n})` : '' });
+    }
+    return out;
+  }
+  if (f.rep === 'monthly') {
+    const day = pd(start).getDate();
+    for (let k = 0; out.length < 400; k++) {
+      const m = pd(start); m.setDate(1); m.setMonth(m.getMonth() + k);
+      const last = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+      m.setDate(Math.min(day, last));
+      const d = ds(m);
+      if (d > end) break;
+      out.push({ date: d, week: weekOf(d) });
+    }
+    return out;
+  }
+  for (let d = start; d <= end && out.length < 400; d = addDays(d, 1)) {
+    if (f.rep === 'daily' || f.days.includes(pd(d).getDay())) out.push({ date: d, week: weekOf(d) });
+  }
+  return out;
+}
+
+function repText(f) {
+  if (f.rep === 'daily') return 'כל יום';
+  if (f.rep === 'days') {
+    const names = f.days.slice().sort().map((i) => DAYS[i]);
+    return `כל יום ${names.length > 1 ? `${names.slice(0, -1).join(', ')} ו${names[names.length - 1]}` : names[0] || ''}`;
+  }
+  if (f.rep === 'weekly') return `${f.n} ${f.n === 1 ? 'פעם' : 'פעמים'} בשבוע`;
+  if (f.rep === 'monthly') return 'פעם בחודש';
+  return '';
 }
 
 function viewBackup() {
@@ -739,12 +808,19 @@ const ACT = {
     const title = document.getElementById('etitle').value.trim();
     if (!title) { toast('צריך לכתוב מה עושים 🙂'); return; }
     const gEl = document.getElementById('egoal');
-    x.title = title;
-    x.goalId = (gEl && gEl.value) || null;
-    x.area = x.goalId ? goal(x.goalId).area : document.getElementById('earea').value;
-    x.together = document.getElementById('etog').checked;
-    save(); ui.edit = false; toast('נשמר ✓');
+    const allEl = document.getElementById('eall');
+    const goalId = (gEl && gEl.value) || null;
+    const changes = { goalId, area: goalId ? goal(goalId).area : document.getElementById('earea').value, together: document.getElementById('etog').checked };
+    const targets = allEl && allEl.checked ? seriesFrom(x) : [x];
+    targets.forEach((y) => { Object.assign(y, changes); y.base = title; y.title = title + (x.series ? y.suffix || '' : ''); });
+    save(); ui.edit = false; toast(targets.length > 1 ? `נשמר ב-${targets.length} משימות ✓` : 'נשמר ✓');
   },
+  delSeries: () => {
+    const ids = new Set(seriesFrom(task(V.id)).map((y) => y.id));
+    if (!confirm(`למחוק ${ids.size} משימות?`)) return;
+    S.tasks = S.tasks.filter((y) => !ids.has(y.id)); save(); go(V.from || 'home'); toast('נמחקו');
+  },
+
   move: (d) => {
     const x = task(V.id);
     const to = { today: today(), tomorrow: addDays(today(), 1), together: togetherFor(x) }[d.to];
@@ -754,15 +830,25 @@ const ACT = {
     save(); toast(`הוזז: ${whenText(x)}`);
   },
   delTask: () => { if (!confirm('למחוק את המשימה?')) return; S.tasks = S.tasks.filter((y) => y.id !== V.id); save(); go(V.from || 'home'); },
+  addRep: (d) => { ui.add.rep = d.r; keepScroll(); },
+  addDay: (d) => { const f = ui.add, i = Number(d.d); f.days = f.days.includes(i) ? f.days.filter((x) => x !== i) : [...f.days, i]; keepScroll(); },
+  addN: (d) => { ui.add.n = Number(d.n); keepScroll(); },
   addTask: () => {
-    const title = document.getElementById('ntitle').value.trim();
+    const f = ui.add;
+    const title = f.title.trim();
     if (!title) { toast('צריך לכתוב מה עושים 🙂'); return; }
-    const gEl = document.getElementById('ngoal');
-    const gid = gEl && gEl.value;
-    const date = document.getElementById('ndate').value || null;
-    S.tasks.push({ id: uid('t'), goalId: gid || null, area: gid ? goal(gid).area : document.getElementById('narea').value, title, week: weekOf(date || today()), date, time: null, together: document.getElementById('ntog').checked, status: 'todo', subs: [], manual: true });
-    save(); go('home'); toast('נוסף!');
+    const list = repeatDates(f);
+    if (!list.length) { toast('צריך לבחור מתי 🙂'); return; }
+    const g = goal(f.goal);
+    const series = f.rep === 'once' ? null : uid('r');
+    list.forEach((o) => S.tasks.push({
+      id: uid('t'), goalId: g ? g.id : null, area: g ? g.area : f.area, title: title + (o.suffix || ''), base: title, suffix: o.suffix || '',
+      week: o.week, date: o.date, time: o.date ? f.time || null : null, together: f.together, status: 'todo', subs: [], manual: true,
+      series, rep: series ? repText(f) : undefined,
+    }));
+    save(); go('home'); toast(series ? `נוספו ${list.length} משימות, ${repText(f)} 🔁` : 'נוסף!');
   },
+
   restore: () => {
     try {
       const p = parseBlock(ui.paste);
@@ -778,6 +864,7 @@ function keepScroll() { const y = window.scrollY; render(); window.scrollTo(0, y
 const IN = {
   ans: (el) => { const a = (S.answers[el.dataset.a] = S.answers[el.dataset.a] || {}); a.a = a.a || []; a.a[Number(el.dataset.k)] = el.value; save(); },
   paste: (el) => { ui.paste = el.value; },
+  add: (el) => { ui.add[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value; if (el.type === 'date') keepScroll(); },
 };
 const CH = {
   ttime: (el) => { const w = el.dataset.w; S.weeks[w] = { ...(S.weeks[w] || {}), time: el.value.trim() }; save(); },
