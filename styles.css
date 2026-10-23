@@ -212,3 +212,13 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .daypick.seven { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .count { font-weight: 500; background: #FFF6D6; border-radius: 14px; padding: 10px 14px; }
 .center { text-align: center; }
+
+/* יש לי זמן ומוטיבציה */
+.boost-btn { border: 0; border-radius: 24px; background: var(--ink); color: var(--bg); padding: 18px 20px; font-size: 18px; font-weight: 600; text-align: start; display: flex; flex-direction: column; gap: 4px; }
+.boost-btn small { font-size: 13px; font-weight: 400; opacity: .8; }
+.boost-sec { display: flex; flex-direction: column; gap: 8px; }
+.boost-item { background: var(--card); border-radius: 20px; display: flex; flex-direction: column; }
+.boost-item .trow { background: transparent; }
+.boost-subs { display: flex; flex-direction: column; gap: 6px; padding: 0 44px 8px 12px; }
+.boost-subs .sub { background: var(--bg); }
+.now-btn { border: 0; border-top: 1px solid var(--line); background: none; min-height: 44px; font-size: 14px; font-weight: 600; color: #5E2A44; border-radius: 0 0 20px 20px; }

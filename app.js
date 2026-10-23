@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '21.10 · משימות חוזרות';
+const VERSION = '23.10 · יש לי זמן ומוטיבציה';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1 });
 let S = load();
 function load() {
@@ -246,7 +246,7 @@ function toast(msg) {
 
 function render() {
   if (!S.user) { app.innerHTML = viewWelcome(); return; }
-  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup };
+  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup };
   const tabs = ['home', 'week', 'month', 'bank', 'me'];
   const v = views[V.name] ? V.name : 'home';
   app.innerHTML = `<main class="screen${tabs.includes(v) ? ' has-nav' : ''}">${views[v]()}</main>${tabs.includes(v) ? nav(v) : ''}${ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : ''}`;
@@ -352,6 +352,7 @@ function viewHome() {
   </header>
   ${!isStandalone() ? `<div class="card hint"><b>טיפ חשוב:</b> ${t('{תוסיפי|תוסיף}')} את האפליקציה למסך הבית, ו${t('{תפתחי|תפתח}')} אותה רק משם, כדי שהכל יישמר. בספארי: כפתור השיתוף ${icon('share', 16)} ואז "הוספה למסך הבית".</div>` : ''}
   ${ring()}
+  ${S.tasks.some((x) => x.status !== 'done') ? `<button class="boost-btn" data-act="go" data-v="boost">⚡ יש לי זמן ומוטיבציה<small>${t('{בואי|בוא} נראה במה אפשר להתקדם עכשיו')}</small></button>` : ''}
   ${step ? `<section class="card next">
     <span class="label">הצעד הבא · שלב ${step.n}</span>
     <h2>${esc(step.title)}</h2>
@@ -430,6 +431,54 @@ function viewMonth() {
 function weekNum(w) {
   const first = (S.planWeeks && S.planWeeks[0]) || weekOf(today());
   return Math.round((pd(w) - pd(first)) / (7 * 864e5)) + 1;
+}
+
+let boostArea = 'all';
+
+// כל מה שפתוח, מחולק לפי כמה זה דחוף
+function boostList() {
+  const td = today(), cw = weekOf(td);
+  const open = S.tasks.filter((x) => x.status !== 'done' && (boostArea === 'all' || x.area === boostArea));
+  const key = (x) => x.date || x.week;
+  const sort = (a, b) => key(a).localeCompare(key(b)) || a.id.localeCompare(b.id, undefined, { numeric: true });
+  return {
+    today: open.filter((x) => x.date === td).sort(sort),
+    late: open.filter((x) => isLate(x)).sort(sort),
+    week: open.filter((x) => !isLate(x) && x.date !== td && weekOf(key(x)) === cw).sort(sort),
+    later: open.filter((x) => !isLate(x) && weekOf(key(x)) > cw).sort(sort),
+  };
+}
+
+function boostItem(x) {
+  const subs = x.subs.filter((y) => !y.done);
+  return `<div class="boost-item">
+    ${taskRow(x, { showWeek: true })}
+    ${subs.length ? `<div class="boost-subs">${subs.map((y) => `<div class="sub"><button class="check sm s-todo" data-act="subAny" data-id="${x.id}" data-sid="${y.id}" aria-label="סימון הצעד כבוצע"></button><span>${esc(y.title)}</span></div>`).join('')}</div>` : ''}
+    ${x.date !== today() ? `<button class="now-btn" data-act="doNow" data-id="${x.id}">⚡ ${t('{עושה|עושה}')} את זה עכשיו</button>` : ''}
+  </div>`;
+}
+
+function viewBoost() {
+  const l = boostList();
+  const more = V.more;
+  const sec = (title, sub, list, limit) => list.length ? `<section class="boost-sec"><div class="sec-head"><h2 class="serif sm">${title}</h2><span class="muted small">${list.length}</span></div>
+    ${sub ? `<p class="muted small">${sub}</p>` : ''}
+    <div class="list">${list.slice(0, limit || list.length).map(boostItem).join('')}</div>
+    ${limit && list.length > limit ? `<button class="link-row" data-act="go" data-v="boost" data-more="1">להראות את כל ה-${list.length} ←</button>` : ''}</section>` : '';
+  const total = l.today.length + l.late.length + l.week.length + l.later.length;
+  return `${topBack()}
+  <h1 class="serif">⚡ במה מתקדמים עכשיו?</h1>
+  <p class="lead">${t('כל מה שפתוח, כולל הצעדים הקטנים. {בחרי|בחר} משהו אחד ו{תתחילי|תתחיל}, גם 10 דקות זה מעולה.')}</p>
+  <button class="pill pink wide" data-act="surprise">🎲 ${t('{תבחרי|תבחר}')} בשבילי</button>
+  <div class="chips">
+    <button class="${boostArea === 'all' ? 'on' : ''}" data-act="boostArea" data-a="all">הכל</button>
+    ${AREAS.map((a) => `<button class="${boostArea === a.id ? 'on' : ''}" data-act="boostArea" data-a="${a.id}"><span class="cdot" style="background:${a.color}"></span>${a.name}</button>`).join('')}
+  </div>
+  ${total ? '' : '<p class="empty">אין כאן משימות פתוחות. וואו! 🎉</p>'}
+  ${sec('קודם כל: מה שנדחה', 'הכי משחרר לסגור את אלה. אפשר להתחיל מצעד קטן.', l.late)}
+  ${sec('מתוכנן להיום', '', l.today)}
+  ${sec('עוד מהשבוע', '', l.week)}
+  ${sec('אפשר להקדים', 'משימות משבועות הבאים. מי שמקדימה, מרוויחה שקט 😉', l.later, V.more ? 0 : 8)}`;
 }
 
 function viewBank() {
@@ -753,7 +802,7 @@ const promptFor = (kind) => (kind === 'plan' ? planPrompt() : kind === 'week' ? 
 
 const ACT = {
   pickUser: (d) => { S.user = { ...USERS[d.u] }; save(); go('home'); },
-  go: (d) => go(d.v, d.w ? { w: d.w } : {}),
+  go: (d) => go(d.v, d.w ? { w: d.w } : d.more ? { more: true } : {}),
   week: (d) => go('week', { w: d.w }),
   month: (d) => go('month', { m: d.m }),
   day: (d) => { V.d = d.d; render(); },
@@ -800,6 +849,14 @@ const ACT = {
     const v = inp && inp.value.trim();
     if (!v) return;
     task(V.id).subs.push({ id: uid('s'), title: v, done: false }); save(); V.split = true; render();
+  },
+  subAny: (d) => { const s = task(d.id).subs.find((y) => y.id === d.sid); s.done = !s.done; save(); if (s.done) toast('צעד קטן, ניצחון גדול ✨'); else keepScroll(); },
+  doNow: (d) => { const x = task(d.id); x.date = today(); x.week = weekOf(today()); if (x.status === 'todo') x.status = 'doing'; save(); toast(t('עברה להיום. {בהצלחה|בהצלחה}! 💪')); },
+  boostArea: (d) => { boostArea = d.a; keepScroll(); },
+  surprise: () => {
+    const open = boostList();
+    const pick = open.late[0] || open.week[Math.floor(Math.random() * open.week.length)] || open.later[0];
+    if (pick) go('task', { id: pick.id, from: 'boost' });
   },
   subToggle: (d) => { const s = task(V.id).subs.find((y) => y.id === d.sid); s.done = !s.done; save(); if (s.done) toast('צעד קטן, ניצחון גדול ✨'); else render(); },
   subDel: (d) => { const x = task(V.id); x.subs = x.subs.filter((y) => y.id !== d.sid); save(); render(); },
