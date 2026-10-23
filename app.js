@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '24.10 · תזכורות עם 20:00';
+const VERSION = '24.10 · תאריך בפורמט חדש';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -813,7 +813,7 @@ function repText(f) {
   return '';
 }
 
-// התזכורות נכנסות דרך קיצור דרך באייפון בשם WEMADEIT. כל שורה: שם המשימה|תאריך ושעה.
+// התזכורות נכנסות דרך קיצור דרך באייפון בשם WEMADEIT. כל שורה: שם המשימה|תאריך ושעה בפורמט ISO (2026-10-24T20:00:00).
 // קיצורים לא מסכים לתאריך בלי שעה, אז משימה בלי שעה נשלחת עם REMIND_HOUR.
 const REMIND_HOUR = '20:00';
 function openShortcut(lines) {
@@ -822,7 +822,7 @@ function openShortcut(lines) {
 function sendReminders(list) {
   const open = list.filter((x) => x.status !== 'done' && x.date);
   if (!open.length) { toast('אין כאן משימות עם תאריך'); return; }
-  openShortcut(open.map((x) => `${x.title.replace(/[|\n]/g, ' ')}|${x.date} ${x.time || REMIND_HOUR}`));
+  openShortcut(open.map((x) => `${x.title.replace(/[|\n]/g, ' ')}|${x.date}T${x.time || REMIND_HOUR}:00`));
 }
 
 function viewRemind() {
@@ -957,7 +957,7 @@ const ACT = {
   },
   remindTest: () => {
     S.remind.on = true; save();
-    openShortcut([`בדיקה מ-WEMADEIT 🎉|${today()} ${REMIND_HOUR}`]);
+    openShortcut([`בדיקה מ-WEMADEIT 🎉|${today()}T${REMIND_HOUR}:00`]);
   },
   remindOff: () => { S.remind.on = false; save(); render(); },
   edit: () => { ui.edit = true; render(); window.scrollTo(0, 0); },
