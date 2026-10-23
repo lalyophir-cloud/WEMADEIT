@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '23.10 · הצעה בשבילך';
+const VERSION = '23.10 · מטרה בכל משימה';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1 });
 let S = load();
 function load() {
@@ -91,6 +91,7 @@ function planPrompt() {
 - מתחילה בפעולה, ואומרת בדיוק מה עושים: "לשלוח הצעת מחיר ל-3 לקוחות ישנים", ולא "לעבוד על לקוחות".
 - אפשר לעשות אותה בישיבה אחת, עד שעתיים. אם זה יותר גדול, לפרק לכמה משימות.
 - ברור מתי היא "בוצעה".
+- מובנת גם כשקוראים אותה לבד, בלי לראות את המטרה: "לכתוב רשימה של מה חסר באתר", ולא "רשימה של מה חסר".
 - דברים שאני דוחה כבר הרבה זמן: לפרק לצעד ראשון קטן במיוחד, כדי שיהיה קל להתחיל.
 
 ## כללים לתוכנית
@@ -297,7 +298,8 @@ function ring(size = 260) {
 function taskRow(x, opts = {}) {
   const a = area(x.area);
   const late = isLate(x);
-  const meta = [a.name];
+  const g = goal(x.goalId);
+  const meta = [g ? `${a.name}: ${g.title}` : a.name];
   if (opts.showDate && x.date) meta.push(short(x.date));
   if (x.time) meta.push(x.time);
   if (opts.showWeek) meta.push(x.date ? `${DAYS[pd(x.date).getDay()]} ${short(x.date)}` : `שבוע ${weekNum(x.week)} · עוד לא שובץ`);
@@ -486,9 +488,11 @@ function viewBoost() {
   const a = area(cur.x.area);
   const next = [1, 2, 3].map((k) => list[(i + k) % list.length]).filter((y, k, arr) => list.length > k + 1 && y !== cur && arr.indexOf(y) === k);
   return `${topBack()}
-  <div class="sec-head"><h1 class="serif">⚡ הצעה בשבילך</h1><button class="link-row" data-act="boostReset">${label[1]} ${label[2]} · לשנות</button></div>
+  <h1 class="serif">⚡ הצעה בשבילך</h1>
+  <button class="link-row tight" data-act="boostReset">יש לי ${label[2]} ${label[1]} · לשנות</button>
   <div class="card suggest" style="border-color:${a.color}">
     <span class="chip" style="background:${a.color}">${a.icon} ${a.name}</span>
+    ${goal(cur.x.goalId) ? `<span class="goal-line">🎯 ${esc(goal(cur.x.goalId).title)}</span>` : ''}
     ${cur.s ? `<span class="muted small">צעד קטן מתוך: ${esc(cur.x.title)}</span><h2 class="serif">${esc(cur.s.title)}</h2>` : `<h2 class="serif">${cur.x.together ? '⭐ ' : ''}${esc(cur.x.title)}</h2>`}
     <p class="why-line">💡 ${esc(cur.why)}</p>
     ${!cur.s && cur.x.subs.some((y) => !y.done) ? `<p class="small muted">יש בה ${cur.x.subs.filter((y) => !y.done).length} צעדים קטנים</p>` : ''}
@@ -498,7 +502,7 @@ function viewBoost() {
       <button class="pill light" data-act="boostNext" data-i="${i + 1}">משהו אחר ←</button>
     </div>
   </div>
-  ${next.length ? `<h3 class="sm-head">עוד רעיונות</h3><div class="list">${next.map((y) => `<button class="idea" data-act="boostNext" data-i="${list.indexOf(y)}"><span class="dot" style="background:${area(y.x.area).color}"></span><span>${esc(y.s ? y.s.title : y.x.title)}${y.s ? '<small>צעד קטן</small>' : ''}</span></button>`).join('')}</div>` : ''}
+  ${next.length ? `<h3 class="sm-head">עוד רעיונות</h3><div class="list">${next.map((y) => `<button class="idea" data-act="boostNext" data-i="${list.indexOf(y)}"><span class="dot" style="background:${area(y.x.area).color}"></span><span>${esc(y.s ? y.s.title : y.x.title)}<small>${y.s ? `צעד קטן מתוך: ${esc(y.x.title)}` : esc((goal(y.x.goalId) || {}).title || area(y.x.area).name)}</small></span></button>`).join('')}</div>` : ''}
   ${chips}`;
 }
 
