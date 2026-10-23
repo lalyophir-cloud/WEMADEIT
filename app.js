@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '24.10 · בלי אימונים בהצעות';
+const VERSION = '24.10 · כפתור תזכורות';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1 });
 let S = load();
 function load() {
@@ -310,6 +310,7 @@ function taskRow(x, opts = {}) {
       <span class="ttl">${x.together ? '⭐ ' : ''}${esc(x.title)}</span>
       <span class="meta">${late ? '<em>נדחה</em> · ' : ''}${esc(meta.join(' · '))}</span>
     </button>
+    ${opts.remind && x.status !== 'done' ? `<button class="bell" data-act="remind" data-id="${x.id}" aria-label="להוסיף לתזכורות">🔔</button>` : ''}
     <button class="check s-${x.status}" data-act="toggle" data-id="${x.id}" aria-label="${x.status === 'done' ? 'לבטל סימון' : 'סימון כבוצע'}">${x.status === 'done' ? icon('check', 16) : ''}</button>
   </div>`;
 }
@@ -369,7 +370,7 @@ function viewHome() {
   </section>` : ''}
   ${wk.together === td ? `<div class="card together">💛 היום זה יום העבודה המשותף שלך ושל ${esc(u.partner)}${wk.time ? ` (${esc(wk.time)})` : ''}</div>` : ''}
   <div class="sec-head"><h2 class="serif">מה הצעד הבא?</h2><span class="muted small">${todays.length ? `${todays.filter((x) => x.status === 'done').length}/${todays.length} היום` : ''}</span></div>
-  ${todays.length ? `<div class="list">${todays.map((x) => taskRow(x)).join('')}</div>` : `<p class="empty">${S.tasks.length ? 'אין משימות להיום. יום חופשי, או זמן טוב לקדם משהו מהשבוע 🙂' : 'כשתהיה תוכנית, המשימות של היום יופיעו כאן.'}</p>`}
+  ${todays.length ? `<div class="list">${todays.map((x) => taskRow(x, { remind: true })).join('')}</div>` : `<p class="empty">${S.tasks.length ? 'אין משימות להיום. יום חופשי, או זמן טוב לקדם משהו מהשבוע 🙂' : 'כשתהיה תוכנית, המשימות של היום יופיעו כאן.'}</p>`}
   ${unscheduled.length ? `<button class="link-row" data-act="go" data-v="week">עוד ${unscheduled.length} משימות השבוע שעוד לא שובצו ←</button>` : ''}`;
 }
 
@@ -696,7 +697,7 @@ function viewTask() {
     ${g ? `<span class="small">מטרה: ${esc(g.title)}</span>` : ''}
     <span class="when">📅 ${esc(whenText(x))}</span>
     ${x.rep ? `<span class="small">🔁 חוזרת: ${esc(x.rep)}</span>` : ''}
-    <button class="pill white" data-act="edit">✏️ עריכה</button>
+    <div class="btn-row"><button class="pill white" data-act="edit">✏️ עריכה</button>${x.status !== 'done' ? `<button class="pill white" data-act="remind" data-id="${x.id}">🔔 לתזכורות</button>` : ''}</div>
   </div>
   ${late ? `<div class="card late-card"><b>המשימה הזו נדחתה, וזה בסדר.</b><p>${t('אפשר להזיז אותה למטה, או לפרק אותה: מה הצעד הכי קטן שאפשר לעשות כבר היום?')}</p></div>` : ''}
   <section class="card move">
@@ -893,6 +894,18 @@ const ACT = {
   },
   subToggle: (d) => { const s = task(V.id).subs.find((y) => y.id === d.sid); s.done = !s.done; save(); if (s.done) toast('צעד קטן, ניצחון גדול ✨'); else render(); },
   subDel: (d) => { const x = task(V.id); x.subs = x.subs.filter((y) => y.id !== d.sid); save(); render(); },
+  // שולח את המשימה לתפריט השיתוף של האייפון, ומשם בוחרים "תזכורות"
+  remind: async (d) => {
+    const x = task(d.id);
+    const when = x.date ? `${x.date === today() ? 'היום' : fmtDay(x.date)}${x.time ? ` ${x.time}` : ''}` : '';
+    const text = `${x.title}${when ? ` (${when})` : ''}`;
+    if (navigator.share) {
+      try { await navigator.share({ text }); } catch (e) { /* המשתמש ביטל */ }
+    } else {
+      const ok = await copyText(text);
+      toast(ok ? 'הועתק. אפשר להדביק בתזכורות' : 'לא הצלחתי להעתיק');
+    }
+  },
   edit: () => { ui.edit = true; render(); window.scrollTo(0, 0); },
   editCancel: () => { ui.edit = false; render(); },
   editSave: () => {
