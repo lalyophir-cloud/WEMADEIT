@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '24.10 · תאריך בפורמט חדש';
+const VERSION = '24.10 · תאריך בלבד + 20 שעות';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -813,23 +813,22 @@ function repText(f) {
   return '';
 }
 
-// התזכורות נכנסות דרך קיצור דרך באייפון בשם WEMADEIT. כל שורה: שם המשימה|תאריך ושעה בפורמט ISO (2026-10-24T20:00:00).
-// קיצורים לא מסכים לתאריך בלי שעה, אז משימה בלי שעה נשלחת עם REMIND_HOUR.
-const REMIND_HOUR = '20:00';
+// התזכורות נכנסות דרך קיצור דרך באייפון בשם WEMADEIT. כל שורה: שם המשימה|תאריך (2026-10-24).
+// קיצורים לא קורא שעה מטקסט, אז הקיצור עצמו מוסיף 20 שעות לתאריך (ההתראה חייבת שעה).
 function openShortcut(lines) {
   location.href = `shortcuts://run-shortcut?name=WEMADEIT&input=text&text=${encodeURIComponent(lines.join('\n'))}`;
 }
 function sendReminders(list) {
   const open = list.filter((x) => x.status !== 'done' && x.date);
   if (!open.length) { toast('אין כאן משימות עם תאריך'); return; }
-  openShortcut(open.map((x) => `${x.title.replace(/[|\n]/g, ' ')}|${x.date}T${x.time || REMIND_HOUR}:00`));
+  openShortcut(open.map((x) => `${x.title.replace(/[|\n]/g, ' ')}|${x.date}`));
 }
 
 function viewRemind() {
   const step = (txt) => `<li>${txt}</li>`;
   return `${topBack('חזרה', 'me')}
   <h1 class="serif">🔔 תזכורות באייפון</h1>
-  <p class="lead">${t('פעם אחת בונים קיצור דרך באפליקציה "קיצורים", ומאז כל משימה נכנסת לתזכורות ביום שלה, בלחיצה אחת. משימה בלי שעה נכנסת עם 20:00, כי האייפון לא מסכים לתאריך בלי שעה. אפשר לשלוח משימה אחת, את כל היום או את כל השבוע.')}</p>
+  <p class="lead">${t('פעם אחת בונים קיצור דרך באפליקציה "קיצורים", ומאז כל משימה נכנסת לתזכורות ביום שלה, בלחיצה אחת. כל תזכורת נכנסת לשעה 20:00, כי האייפון לא מסכים לתאריך בלי שעה. אפשר לשלוח משימה אחת, את כל היום או את כל השבוע.')}</p>
   ${S.remind.on ? `<div class="card together">✓ קיצור הדרך מחובר. הכפתורים 🔔 שולחים ישר לתזכורות.</div>` : ''}
   <section class="card">
     <h3>${t('איך בונים (בערך 5 דקות)')}</h3>
@@ -842,7 +841,9 @@ function viewRemind() {
       ${step('מוסיפים שוב <b>פיצול טקסט</b>, וגוררים אותו <b>לתוך</b> החזרה (בין "חזרה" ל"סיום החזרה"). צריך שיהיה כתוב בו <b>פריט חוזר</b> (Repeat Item). לוחצים על <b>שורות חדשות</b>, בוחרים <b>מותאם אישית</b> (Custom) ומקלידים את הסימן <b>|</b>')}
       ${step('מוסיפים בתוך החזרה <b>קבלת פריט מרשימה</b> (Get Item from List), ומשאירים <b>פריט ראשון</b>. זה שם המשימה.')}
       ${step('מוסיפים מתחתיו עוד <b>קבלת פריט מרשימה</b>. משנים ל<b>פריט אחרון</b> (Last Item). לוחצים על המשתנה הכחול שאחריו, <b>בחירת משתנה</b>, ובוחרים את <b>טקסט מפוצל</b> משלב 5. זה התאריך.')}
+      ${step('מוסיפים מתחתיו <b>קבלת תאריכים מהקלט</b> (Get Dates from Input), מ<b>פריט מהרשימה</b> משלב 7.')}
       ${step('מוסיפים מתחתיו <b>הוספת תזכורת חדשה</b> (Add New Reminder). במקום הכותרת שמים את המשתנה <b>פריט מרשימה</b> משלב 6. לוחצים על החץ / <b>הצג עוד</b>, מדליקים <b>התראה</b> (Alert). זה השדה שבו התאריך נקבע. בתאריך שמים את <b>פריט מרשימה</b> משלב 7.')}
+      ${step('בין <b>קבלת תאריכים</b> לבין התזכורת מוסיפים <b>שינוי תאריך</b> (Adjust Date): <b>הוספה</b> של <b>20 שעות</b> ל<b>תאריכים</b>. ובתזכורת, אחרי "עם", שמים את <b>התאריך שהשתנה</b> (Adjusted Date).')}
       ${step('לוחצים <b>סיום</b>, וחוזרים לכאן.')}
     </ol>
   </section>
@@ -957,7 +958,7 @@ const ACT = {
   },
   remindTest: () => {
     S.remind.on = true; save();
-    openShortcut([`בדיקה מ-WEMADEIT 🎉|${today()}T${REMIND_HOUR}:00`]);
+    openShortcut([`בדיקה מ-WEMADEIT 🎉|${today()}`]);
   },
   remindOff: () => { S.remind.on = false; save(); render(); },
   edit: () => { ui.edit = true; render(); window.scrollTo(0, 0); },
