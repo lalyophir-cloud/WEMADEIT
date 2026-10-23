@@ -216,9 +216,14 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 /* יש לי זמן ומוטיבציה */
 .boost-btn { border: 0; border-radius: 24px; background: var(--ink); color: var(--bg); padding: 18px 20px; font-size: 18px; font-weight: 600; text-align: start; display: flex; flex-direction: column; gap: 4px; }
 .boost-btn small { font-size: 13px; font-weight: 400; opacity: .8; }
-.boost-sec { display: flex; flex-direction: column; gap: 8px; }
-.boost-item { background: var(--card); border-radius: 20px; display: flex; flex-direction: column; }
-.boost-item .trow { background: transparent; }
-.boost-subs { display: flex; flex-direction: column; gap: 6px; padding: 0 44px 8px 12px; }
-.boost-subs .sub { background: var(--bg); }
-.now-btn { border: 0; border-top: 1px solid var(--line); background: none; min-height: 44px; font-size: 14px; font-weight: 600; color: #5E2A44; border-radius: 0 0 20px 20px; }
+.times { display: flex; flex-direction: column; gap: 10px; }
+.times button { border: 0; border-radius: 24px; background: var(--card); min-height: 72px; font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 14px; padding: 0 20px; }
+.times button span { font-size: 28px; }
+.card.suggest { border: 3px solid; gap: 12px; padding: 22px; }
+.card.suggest .chip { align-self: flex-start; }
+.card.suggest h2.serif { font-size: 26px; line-height: 1.25; font-weight: 700; }
+.why-line { background: var(--bg); border-radius: 14px; padding: 10px 12px; font-size: 15px; }
+.sm-head { font-size: 16px; font-weight: 600; }
+.idea { border: 0; background: var(--card); border-radius: 18px; min-height: 52px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; text-align: start; font-size: 15px; }
+.idea .dot { height: 28px; }
+.idea small { display: block; color: var(--muted); font-size: 12px; }
