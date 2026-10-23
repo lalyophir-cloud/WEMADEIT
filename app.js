@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '23.10 · מטרה בכל משימה';
+const VERSION = '24.10 · בלי אימונים בהצעות';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1 });
 let S = load();
 function load() {
@@ -445,7 +445,9 @@ function suggestions(time) {
   const td = today(), cw = weekOf(td);
   const hash = (str) => { let h = boostSeed; for (const c of str) h = (h * 31 + c.charCodeAt(0)) % 9973; return h % 10; };
   const items = [];
-  S.tasks.filter((x) => x.status !== 'done' && (boostArea === 'all' || x.area === boostArea)).forEach((x) => {
+  // אימונים לא מציעים כאן: הם קורים לפי הלו"ז, לא כשיש רגע פנוי
+  const workout = (x) => /אימון|הליכה|ריצה|פילאטיס|יוגה|כושר|ספורט|שחייה|אופניים|תנועה/.test(`${x.title} ${(goal(x.goalId) || {}).title || ''}`);
+  S.tasks.filter((x) => x.status !== 'done' && !workout(x) && (boostArea === 'all' || x.area === boostArea)).forEach((x) => {
     const w = weekOf(x.date || x.week);
     let base, why;
     if (isLate(x)) { base = 50; why = t('נדחה קצת. {בואי|בוא} נסגור את זה, זה ישחרר 💪'); }
