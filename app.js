@@ -2,9 +2,10 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '24.10 · כפתור תזכורות';
-const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1 });
+const VERSION = '24.10 · קיצור דרך לתזכורות';
+const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false, hour: '09:00' } });
 let S = load();
+if (!S.remind) S.remind = { on: false, hour: '09:00' };
 function load() {
   try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY)) }; } catch (e) { return fresh(); }
 }
@@ -247,7 +248,7 @@ function toast(msg) {
 
 function render() {
   if (!S.user) { app.innerHTML = viewWelcome(); return; }
-  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup };
+  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, remindSetup: viewRemind };
   const tabs = ['home', 'week', 'month', 'bank', 'me'];
   const v = views[V.name] ? V.name : 'home';
   app.innerHTML = `<main class="screen${tabs.includes(v) ? ' has-nav' : ''}">${views[v]()}</main>${tabs.includes(v) ? nav(v) : ''}${ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : ''}`;
@@ -370,6 +371,7 @@ function viewHome() {
   </section>` : ''}
   ${wk.together === td ? `<div class="card together">💛 היום זה יום העבודה המשותף שלך ושל ${esc(u.partner)}${wk.time ? ` (${esc(wk.time)})` : ''}</div>` : ''}
   <div class="sec-head"><h2 class="serif">מה הצעד הבא?</h2><span class="muted small">${todays.length ? `${todays.filter((x) => x.status === 'done').length}/${todays.length} היום` : ''}</span></div>
+  ${todays.some((x) => x.status !== 'done') ? `<button class="link-row tight" data-act="remindMany" data-scope="day">🔔 כל המשימות של היום לתזכורות</button>` : ''}
   ${todays.length ? `<div class="list">${todays.map((x) => taskRow(x, { remind: true })).join('')}</div>` : `<p class="empty">${S.tasks.length ? 'אין משימות להיום. יום חופשי, או זמן טוב לקדם משהו מהשבוע 🙂' : 'כשתהיה תוכנית, המשימות של היום יופיעו כאן.'}</p>`}
   ${unscheduled.length ? `<button class="link-row" data-act="go" data-v="week">עוד ${unscheduled.length} משימות השבוע שעוד לא שובצו ←</button>` : ''}`;
 }
@@ -389,6 +391,7 @@ function viewWeek() {
     <span><b>${weekRange(w)}</b>${w === weekOf(today()) ? '<small>השבוע</small>' : ''}</span>
     <button class="round" data-act="week" data-w="${addDays(w, 7)}" aria-label="שבוע הבא">${icon('next', 20)}</button>
   </div>
+  ${inWeek.some((x) => x.status !== 'done' && x.date >= today()) ? `<button class="pill light wide" data-act="remindMany" data-scope="week" data-w="${w}">🔔 כל השבוע לתזכורות באייפון</button>` : ''}
   ${canPlan ? `<section class="card next"><span class="label">הצעד הבא</span><h2>לתכנן את השבוע</h2><p>${t('לבחור יום משותף ולשבץ את המשימות לפי היומן.')}</p><button class="pill dark" data-act="go" data-v="weekly" data-w="${w}">${t('{בואי|בוא} נתכנן')}</button></section>` : ''}
   ${wk.together && wk.together !== 'none' ? `<div class="card together">💛 יום עבודה משותף: ${fmtDay(wk.together)}${wk.time ? `, ${esc(wk.time)}` : ''}</div>` : ''}
   ${days.map((d) => {
@@ -576,6 +579,7 @@ function viewMe() {
     <button class="pill light wide" data-act="go" data-v="quest">${S.qDone ? 'לעבור שוב על השאלון' : 'להמשיך את השאלון'}</button>
     ${S.qDone ? '<button class="pill light wide" data-act="go" data-v="plan">לבנות את התוכנית מחדש עם Claude</button>' : ''}
     <button class="pill light wide" data-act="go" data-v="weekly">תכנון שבועי</button>
+    <button class="pill light wide" data-act="go" data-v="remindSetup">🔔 תזכורות באייפון${S.remind.on ? ' ✓' : ''}</button>
     <button class="pill light wide" data-act="go" data-v="backup">גיבוי ושחזור</button>
   </div>
   <p class="muted small center">גרסה: ${VERSION}</p>`;
@@ -809,6 +813,43 @@ function repText(f) {
   return '';
 }
 
+// התזכורות נכנסות דרך קיצור דרך באייפון בשם WEMADEIT. כל שורה: שם המשימה|תאריך ושעה
+function openShortcut(lines) {
+  location.href = `shortcuts://run-shortcut?name=WEMADEIT&input=text&text=${encodeURIComponent(lines.join('\n'))}`;
+}
+function sendReminders(list) {
+  const open = list.filter((x) => x.status !== 'done' && x.date);
+  if (!open.length) { toast('אין כאן משימות עם תאריך'); return; }
+  openShortcut(open.map((x) => `${x.title.replace(/[|\n]/g, ' ')}|${x.date} ${x.time || S.remind.hour}`));
+}
+
+function viewRemind() {
+  const step = (txt) => `<li>${txt}</li>`;
+  return `${topBack('חזרה', 'me')}
+  <h1 class="serif">🔔 תזכורות באייפון</h1>
+  <p class="lead">${t('פעם אחת בונים קיצור דרך באפליקציה "קיצורים", ומאז כל משימה נכנסת לתזכורות עם התאריך שלה, בלחיצה אחת. אפשר לשלוח משימה אחת, את כל היום או את כל השבוע.')}</p>
+  <div class="field"><label for="rhour">באיזו שעה התזכורת תקפוץ?</label><input id="rhour" type="time" value="${S.remind.hour}" data-ch="rhour"></div>
+  ${S.remind.on ? `<div class="card together">✓ קיצור הדרך מחובר. הכפתורים 🔔 שולחים ישר לתזכורות.</div>` : ''}
+  <section class="card">
+    <h3>${t('איך בונים (בערך 5 דקות)')}</h3>
+    <p class="small muted">${t('השמות באייפון יכולים להיות קצת שונים. אם משהו לא מסתדר, {צלמי|צלם} מסך ו{שלחי|שלח} לי.')}</p>
+    <ol class="howto">
+      ${step('פותחים את האפליקציה <b>קיצורים</b> (Shortcuts) ולוחצים על <b>+</b> למעלה.')}
+      ${step('לוחצים על השם של הקיצור למעלה, בוחרים <b>שינוי שם</b> וכותבים בדיוק: <b>WEMADEIT</b>')}
+      ${step('בחיפוש למטה מקלידים <b>פיצול טקסט</b> (Split Text) ומוסיפים. לוחצים על המילה הכחולה <b>טקסט</b> ובוחרים <b>קלט קיצור הדרך</b> (Shortcut Input). אחר כך לוחצים על <b>רווחים</b> ובוחרים <b>שורות חדשות</b> (New Lines).')}
+      ${step('מחפשים <b>חזרה עם כל אחד</b> (Repeat with Each) ומוסיפים.')}
+      ${step('מוסיפים שוב <b>פיצול טקסט</b>, וגוררים אותו <b>לתוך</b> החזרה (בין "חזרה" ל"סיום החזרה"). צריך שיהיה כתוב בו <b>פריט חוזר</b> (Repeat Item). לוחצים על <b>שורות חדשות</b>, בוחרים <b>מותאם אישית</b> (Custom) ומקלידים את הסימן <b>|</b>')}
+      ${step('מוסיפים בתוך החזרה <b>קבלת פריט מרשימה</b> (Get Item from List), ומשאירים <b>פריט ראשון</b>. זה שם המשימה.')}
+      ${step('מוסיפים מתחתיו עוד <b>קבלת פריט מרשימה</b>. משנים ל<b>פריט אחרון</b> (Last Item). לוחצים על המשתנה הכחול שאחריו, <b>בחירת משתנה</b>, ובוחרים את <b>טקסט מפוצל</b> משלב 5. זה התאריך.')}
+      ${step('מוסיפים מתחתיו <b>הוספת תזכורת חדשה</b> (Add New Reminder). במקום הכותרת שמים את המשתנה <b>פריט מרשימה</b> משלב 6. לוחצים על החץ / <b>הצג עוד</b>, מדליקים <b>התראה</b> (Alert), ובתאריך שמים את <b>פריט מרשימה</b> משלב 7.')}
+      ${step('לוחצים <b>סיום</b>, וחוזרים לכאן.')}
+    </ol>
+  </section>
+  <button class="pill dark wide" data-act="remindTest">${t('בניתי! {בואי|בוא} נבדוק')} 🎉</button>
+  <p class="small muted center">${t('הבדיקה יוצרת תזכורת אחת לדוגמה להיום. אם היא הופיעה בתזכורות, הכל עובד.')}</p>
+  ${S.remind.on ? '<button class="pill light wide" data-act="remindOff">לנתק ולחזור לתפריט השיתוף</button>' : ''}`;
+}
+
 function viewBackup() {
   return `${topBack('חזרה', 'me')}
   <h1 class="serif">גיבוי ושחזור</h1>
@@ -894,11 +935,11 @@ const ACT = {
   },
   subToggle: (d) => { const s = task(V.id).subs.find((y) => y.id === d.sid); s.done = !s.done; save(); if (s.done) toast('צעד קטן, ניצחון גדול ✨'); else render(); },
   subDel: (d) => { const x = task(V.id); x.subs = x.subs.filter((y) => y.id !== d.sid); save(); render(); },
-  // שולח את המשימה לתפריט השיתוף של האייפון, ומשם בוחרים "תזכורות"
   remind: async (d) => {
     const x = task(d.id);
-    const when = x.date ? `${x.date === today() ? 'היום' : fmtDay(x.date)}${x.time ? ` ${x.time}` : ''}` : '';
-    const text = `${x.title}${when ? ` (${when})` : ''}`;
+    if (S.remind.on) { sendReminders([x]); return; }
+    // בלי קיצור דרך: שולחים לתפריט השיתוף, ומשם בוחרים "תזכורות"
+    const text = `${x.title}${x.date ? ` (${x.date === today() ? 'היום' : fmtDay(x.date)})` : ''}`;
     if (navigator.share) {
       try { await navigator.share({ text }); } catch (e) { /* המשתמש ביטל */ }
     } else {
@@ -906,6 +947,17 @@ const ACT = {
       toast(ok ? 'הועתק. אפשר להדביק בתזכורות' : 'לא הצלחתי להעתיק');
     }
   },
+  remindMany: (d) => {
+    if (!S.remind.on) { go('remindSetup'); return; }
+    const list = d.scope === 'day' ? S.tasks.filter((x) => x.date === today())
+      : S.tasks.filter((x) => x.date && x.date >= today() && weekOf(x.date) === d.w);
+    sendReminders(list);
+  },
+  remindTest: () => {
+    S.remind.on = true; save();
+    openShortcut([`בדיקה מ-WEMADEIT 🎉|${today()} ${S.remind.hour}`]);
+  },
+  remindOff: () => { S.remind.on = false; save(); render(); },
   edit: () => { ui.edit = true; render(); window.scrollTo(0, 0); },
   editCancel: () => { ui.edit = false; render(); },
   editSave: () => {
@@ -972,6 +1024,7 @@ const IN = {
   add: (el) => { ui.add[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value; if (el.type === 'date') keepScroll(); },
 };
 const CH = {
+  rhour: (el) => { if (el.value) { S.remind.hour = el.value; save(); toast(`התזכורות יקפצו ב-${el.value}`); } },
   ttime: (el) => { const w = el.dataset.w; S.weeks[w] = { ...(S.weeks[w] || {}), time: el.value.trim() }; save(); },
   date: (el) => { const x = task(V.id); x.date = el.value || null; if (x.date) x.week = weekOf(x.date); save(); toast(`הוזז: ${whenText(x)}`); },
   time: (el) => { const x = task(V.id); x.time = el.value || null; save(); if (x.date) toast(`הוזז: ${whenText(x)}`); },
