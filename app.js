@@ -2,10 +2,10 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '24.10 · קיצור דרך לתזכורות';
-const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false, hour: '09:00' } });
+const VERSION = '24.10 · תזכורות בלי שעה';
+const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
-if (!S.remind) S.remind = { on: false, hour: '09:00' };
+if (!S.remind) S.remind = { on: false };
 function load() {
   try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY)) }; } catch (e) { return fresh(); }
 }
@@ -813,22 +813,21 @@ function repText(f) {
   return '';
 }
 
-// התזכורות נכנסות דרך קיצור דרך באייפון בשם WEMADEIT. כל שורה: שם המשימה|תאריך ושעה
+// התזכורות נכנסות דרך קיצור דרך באייפון בשם WEMADEIT. כל שורה: שם המשימה|תאריך (בלי שעה)
 function openShortcut(lines) {
   location.href = `shortcuts://run-shortcut?name=WEMADEIT&input=text&text=${encodeURIComponent(lines.join('\n'))}`;
 }
 function sendReminders(list) {
   const open = list.filter((x) => x.status !== 'done' && x.date);
   if (!open.length) { toast('אין כאן משימות עם תאריך'); return; }
-  openShortcut(open.map((x) => `${x.title.replace(/[|\n]/g, ' ')}|${x.date} ${x.time || S.remind.hour}`));
+  openShortcut(open.map((x) => `${x.title.replace(/[|\n]/g, ' ')}|${x.date}`));
 }
 
 function viewRemind() {
   const step = (txt) => `<li>${txt}</li>`;
   return `${topBack('חזרה', 'me')}
   <h1 class="serif">🔔 תזכורות באייפון</h1>
-  <p class="lead">${t('פעם אחת בונים קיצור דרך באפליקציה "קיצורים", ומאז כל משימה נכנסת לתזכורות עם התאריך שלה, בלחיצה אחת. אפשר לשלוח משימה אחת, את כל היום או את כל השבוע.')}</p>
-  <div class="field"><label for="rhour">באיזו שעה התזכורת תקפוץ?</label><input id="rhour" type="time" value="${S.remind.hour}" data-ch="rhour"></div>
+  <p class="lead">${t('פעם אחת בונים קיצור דרך באפליקציה "קיצורים", ומאז כל משימה נכנסת לתזכורות עם התאריך שלה בלבד, בלי שעה, בלחיצה אחת. אפשר לשלוח משימה אחת, את כל היום או את כל השבוע.')}</p>
   ${S.remind.on ? `<div class="card together">✓ קיצור הדרך מחובר. הכפתורים 🔔 שולחים ישר לתזכורות.</div>` : ''}
   <section class="card">
     <h3>${t('איך בונים (בערך 5 דקות)')}</h3>
@@ -841,12 +840,13 @@ function viewRemind() {
       ${step('מוסיפים שוב <b>פיצול טקסט</b>, וגוררים אותו <b>לתוך</b> החזרה (בין "חזרה" ל"סיום החזרה"). צריך שיהיה כתוב בו <b>פריט חוזר</b> (Repeat Item). לוחצים על <b>שורות חדשות</b>, בוחרים <b>מותאם אישית</b> (Custom) ומקלידים את הסימן <b>|</b>')}
       ${step('מוסיפים בתוך החזרה <b>קבלת פריט מרשימה</b> (Get Item from List), ומשאירים <b>פריט ראשון</b>. זה שם המשימה.')}
       ${step('מוסיפים מתחתיו עוד <b>קבלת פריט מרשימה</b>. משנים ל<b>פריט אחרון</b> (Last Item). לוחצים על המשתנה הכחול שאחריו, <b>בחירת משתנה</b>, ובוחרים את <b>טקסט מפוצל</b> משלב 5. זה התאריך.')}
-      ${step('מוסיפים מתחתיו <b>הוספת תזכורת חדשה</b> (Add New Reminder). במקום הכותרת שמים את המשתנה <b>פריט מרשימה</b> משלב 6. לוחצים על החץ / <b>הצג עוד</b>, מדליקים <b>התראה</b> (Alert), ובתאריך שמים את <b>פריט מרשימה</b> משלב 7.')}
+      ${step('מוסיפים מתחתיו <b>הוספת תזכורת חדשה</b> (Add New Reminder). במקום הכותרת שמים את המשתנה <b>פריט מרשימה</b> משלב 6. לוחצים על החץ / <b>הצג עוד</b>, מדליקים <b>התראה</b> (Alert). זה השדה שבו התאריך נקבע. בתאריך שמים את <b>פריט מרשימה</b> משלב 7. מכיוון שאין שעה, זו תזכורת של כל היום, בלי התראה בשעה מסוימת.')}
       ${step('לוחצים <b>סיום</b>, וחוזרים לכאן.')}
     </ol>
   </section>
   <button class="pill dark wide" data-act="remindTest">${t('בניתי! {בואי|בוא} נבדוק')} 🎉</button>
   <p class="small muted center">${t('הבדיקה יוצרת תזכורת אחת לדוגמה להיום. אם היא הופיעה בתזכורות, הכל עובד.')}</p>
+  <p class="small muted">${t('טיפ: האייפון יכול לשלוח פעם ביום סיכום בוקר של תזכורות "כל היום". אם {את לא רוצה|אתה לא רוצה} אותו: הגדרות ← תזכורות ← לכבות את "התראה להיום" (Today Notification).')}</p>
   ${S.remind.on ? '<button class="pill light wide" data-act="remindOff">לנתק ולחזור לתפריט השיתוף</button>' : ''}`;
 }
 
@@ -955,7 +955,7 @@ const ACT = {
   },
   remindTest: () => {
     S.remind.on = true; save();
-    openShortcut([`בדיקה מ-WEMADEIT 🎉|${today()} ${S.remind.hour}`]);
+    openShortcut([`בדיקה מ-WEMADEIT 🎉|${today()}`]);
   },
   remindOff: () => { S.remind.on = false; save(); render(); },
   edit: () => { ui.edit = true; render(); window.scrollTo(0, 0); },
@@ -1024,7 +1024,6 @@ const IN = {
   add: (el) => { ui.add[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value; if (el.type === 'date') keepScroll(); },
 };
 const CH = {
-  rhour: (el) => { if (el.value) { S.remind.hour = el.value; save(); toast(`התזכורות יקפצו ב-${el.value}`); } },
   ttime: (el) => { const w = el.dataset.w; S.weeks[w] = { ...(S.weeks[w] || {}), time: el.value.trim() }; save(); },
   date: (el) => { const x = task(V.id); x.date = el.value || null; if (x.date) x.week = weekOf(x.date); save(); toast(`הוזז: ${whenText(x)}`); },
   time: (el) => { const x = task(V.id); x.time = el.value || null; save(); if (x.date) toast(`הוזז: ${whenText(x)}`); },
