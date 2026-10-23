@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '24.10 · תזכורות עם 08:00';
+const VERSION = '24.10 · תזכורות עם 20:00';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -815,7 +815,7 @@ function repText(f) {
 
 // התזכורות נכנסות דרך קיצור דרך באייפון בשם WEMADEIT. כל שורה: שם המשימה|תאריך ושעה.
 // קיצורים לא מסכים לתאריך בלי שעה, אז משימה בלי שעה נשלחת עם REMIND_HOUR.
-const REMIND_HOUR = '08:00';
+const REMIND_HOUR = '20:00';
 function openShortcut(lines) {
   location.href = `shortcuts://run-shortcut?name=WEMADEIT&input=text&text=${encodeURIComponent(lines.join('\n'))}`;
 }
@@ -829,7 +829,7 @@ function viewRemind() {
   const step = (txt) => `<li>${txt}</li>`;
   return `${topBack('חזרה', 'me')}
   <h1 class="serif">🔔 תזכורות באייפון</h1>
-  <p class="lead">${t('פעם אחת בונים קיצור דרך באפליקציה "קיצורים", ומאז כל משימה נכנסת לתזכורות ביום שלה, בלחיצה אחת. משימה בלי שעה נכנסת עם 08:00, כי האייפון לא מסכים לתאריך בלי שעה. אפשר לשלוח משימה אחת, את כל היום או את כל השבוע.')}</p>
+  <p class="lead">${t('פעם אחת בונים קיצור דרך באפליקציה "קיצורים", ומאז כל משימה נכנסת לתזכורות ביום שלה, בלחיצה אחת. משימה בלי שעה נכנסת עם 20:00, כי האייפון לא מסכים לתאריך בלי שעה. אפשר לשלוח משימה אחת, את כל היום או את כל השבוע.')}</p>
   ${S.remind.on ? `<div class="card together">✓ קיצור הדרך מחובר. הכפתורים 🔔 שולחים ישר לתזכורות.</div>` : ''}
   <section class="card">
     <h3>${t('איך בונים (בערך 5 דקות)')}</h3>
