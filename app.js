@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '25.10 · הדבקה עם חזרות';
+const VERSION = '25.10 · הדף נשאר במקום';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -238,10 +238,21 @@ const app = document.getElementById('app');
 let V = { name: 'home' };
 const bankView = { by: 'area', a: 'all' }; // נשמר כשחוזרים ממשימה
 let ui = {};
-function go(name, params = {}) { V = { name, ...params }; ui = { toast: ui.toast }; render(); window.scrollTo(0, 0); }
+// כשחוזרים ממשימה (או מהוספה) לרשימה, חוזרים לאותו מקום בדף ולא לראש הדף
+const scrollMemo = {};
+const viewKey = (v) => `${v.name}|${v.w || ''}|${v.m || ''}`;
+const DETAIL_VIEWS = ['task', 'add', 'paste'];
+function go(name, params = {}) {
+  scrollMemo[viewKey(V)] = window.scrollY;
+  const from = V.name;
+  if (name === 'weekly' && !params.w) params.w = targetWeek();
+  V = { name, ...params }; ui = { toast: ui.toast }; render();
+  const back = DETAIL_VIEWS.includes(from) && !DETAIL_VIEWS.includes(name);
+  window.scrollTo(0, back ? scrollMemo[viewKey(V)] || 0 : 0);
+}
 let toastTimer;
 function toast(msg) {
-  ui.toast = msg; render();
+  ui.toast = msg; keepScroll();
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { ui.toast = null; const el = document.querySelector('.toast'); if (el) el.remove(); }, 2600);
 }
@@ -281,7 +292,7 @@ function nav(v) {
 
 const calSwitch = (v) => `<div class="seg"><button class="${v === 'week' ? 'on' : ''}" data-act="go" data-v="week">שבוע</button><button class="${v === 'month' ? 'on' : ''}" data-act="go" data-v="month">חודש</button></div>`;
 
-const topBack = (label = 'חזרה', to = 'home') => `<div class="top"><button class="round dashed" data-act="go" data-v="${to}" aria-label="${label}">${icon('back', 20)}</button></div>`;
+const topBack = (label = 'חזרה', to = 'home', w) => `<div class="top"><button class="round dashed" data-act="go" data-v="${to}"${w ? ` data-w="${w}"` : ''} aria-label="${label}">${icon('back', 20)}</button></div>`;
 
 function ring(size = 260) {
   const cx = size / 2, r = size / 2 - 20, n = AREAS.length, span = 360 / n, gap = 14;
@@ -716,7 +727,7 @@ function viewTask() {
   quick.push(['nextweek', 'לשבוע הבא'], ['none', 'בלי תאריך']);
   const weeks = [...new Set([...(S.planWeeks || []), ...planWeeks(), x.week])].filter((w) => w >= weekOf(today()) || w === x.week).sort();
   if (ui.edit) {
-    return `${topBack('חזרה', V.from || 'home')}
+    return `${topBack('חזרה', V.from || 'home', V.fromW)}
     <h1 class="serif">עריכת המשימה</h1>
     <div class="field"><label for="etitle">מה עושים?</label><input id="etitle" type="text" value="${esc(x.series ? x.base : x.title)}"></div>
     <div class="field"><label for="earea">תחום</label><select id="earea">${AREAS.map((y) => `<option value="${y.id}"${y.id === x.area ? ' selected' : ''}>${y.icon} ${y.name}</option>`).join('')}</select></div>
@@ -727,7 +738,7 @@ function viewTask() {
     <button class="pill light wide danger" data-act="delTask">${x.series ? 'למחוק רק את המשימה הזו' : 'מחיקת המשימה'}</button>
     ${x.series ? '<button class="pill light wide danger" data-act="delSeries">למחוק אותה ואת כל החזרות הבאות</button>' : ''}`;
   }
-  return `${topBack('חזרה', V.from || 'home')}
+  return `${topBack('חזרה', V.from || 'home', V.fromW)}
   <div class="card hero" style="background:${a.color}">
     <span class="chip light">${a.icon} ${a.name}</span>
     <h1 class="serif task-title">${x.together ? '⭐ ' : ''}${esc(x.title)}</h1>
@@ -958,7 +969,7 @@ const ACT = {
   day: (d) => { V.d = d.d; render(); },
   bank: (d) => { bankView.by = d.by; bankView.a = d.a; go('bank'); },
   addTo: (d) => go('add', { g: d.g }),
-  open: (d) => go('task', { id: d.id, from: V.name === 'task' ? 'home' : V.name, split: !!d.split }),
+  open: (d) => go('task', { id: d.id, from: V.name === 'task' ? 'home' : V.name, fromW: V.w, split: !!d.split }),
   toggle: (d) => {
     const x = task(d.id);
     x.status = x.status === 'done' ? 'todo' : 'done';
@@ -1090,7 +1101,7 @@ const ACT = {
   delSeries: () => {
     const ids = new Set(seriesFrom(task(V.id)).map((y) => y.id));
     if (!confirm(`למחוק ${ids.size} משימות?`)) return;
-    S.tasks = S.tasks.filter((y) => !ids.has(y.id)); save(); go(V.from || 'home'); toast('נמחקו');
+    S.tasks = S.tasks.filter((y) => !ids.has(y.id)); save(); go(V.from || 'home', V.fromW ? { w: V.fromW } : {}); toast('נמחקו');
   },
 
   move: (d) => {
@@ -1101,7 +1112,7 @@ const ACT = {
     else if (d.to === 'none') { x.date = null; x.time = null; if (x.week < weekOf(today())) x.week = weekOf(today()); }
     save(); toast(`הוזז: ${whenText(x)}`);
   },
-  delTask: () => { if (!confirm('למחוק את המשימה?')) return; S.tasks = S.tasks.filter((y) => y.id !== V.id); save(); go(V.from || 'home'); },
+  delTask: () => { if (!confirm('למחוק את המשימה?')) return; S.tasks = S.tasks.filter((y) => y.id !== V.id); save(); go(V.from || 'home', V.fromW ? { w: V.fromW } : {}); },
   addRep: (d) => { ui.add.rep = d.r; keepScroll(); },
   addDay: (d) => { const f = ui.add, i = Number(d.d); f.days = f.days.includes(i) ? f.days.filter((x) => x !== i) : [...f.days, i]; keepScroll(); },
   addN: (d) => { ui.add.n = Number(d.n); keepScroll(); },
