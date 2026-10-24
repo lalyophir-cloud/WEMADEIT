@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '24.10 · כמה ימים למשימה';
+const VERSION = '24.10 · הדבקת משימות מ-Claude';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -248,7 +248,7 @@ function toast(msg) {
 
 function render() {
   if (!S.user) { app.innerHTML = viewWelcome(); return; }
-  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, remindSetup: viewRemind };
+  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, remindSetup: viewRemind, paste: viewPaste };
   const tabs = ['home', 'week', 'month', 'bank', 'me'];
   const v = views[V.name] ? V.name : 'home';
   app.innerHTML = `<main class="screen${tabs.includes(v) ? ' has-nav' : ''}">${views[v]()}</main>${tabs.includes(v) ? nav(v) : ''}${ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : ''}`;
@@ -782,6 +782,7 @@ function viewAdd() {
   const count = repeatDates(f).length;
   return `${topBack('חזרה', V.back || 'home')}
   <h1 class="serif">משימה חדשה</h1>
+  <button class="pill light wide" data-act="go" data-v="paste">📋 ${t('יש לי משימות מ-Claude? {הדביקי|הדבק} כאן')}</button>
   <div class="field"><label for="ntitle">מה עושים?</label><input id="ntitle" type="text" value="${esc(f.title)}" data-in="add" data-f="title" ${f.title ? '' : 'data-autofocus'}></div>
   <div class="field"><label for="narea">תחום</label><select id="narea" data-in="add" data-f="area">${AREAS.map((a) => `<option value="${a.id}"${f.area === a.id ? ' selected' : ''}>${a.icon} ${a.name}</option>`).join('')}</select></div>
   ${S.goals.length ? `<div class="field"><label for="ngoal">מטרה (לא חובה)</label><select id="ngoal" data-in="add" data-f="goal"><option value="">בלי</option>${S.goals.map((g) => `<option value="${g.id}"${f.goal === g.id ? ' selected' : ''}>${esc(area(g.area).name)}: ${esc(g.title)}</option>`).join('')}</select></div>` : ''}
@@ -885,6 +886,39 @@ function viewRemind() {
   ${S.remind.on ? '<button class="pill light wide" data-act="remindOff">לנתק ולחזור לתפריט השיתוף</button>' : ''}`;
 }
 
+// משימות שמגיעות מצ'אט עם Claude: {"type":"wemadeit-add","tasks":[{"title","area","goal","dates":[...],"week","together"}]}
+function pasteTasks(p) {
+  const out = [];
+  (p.tasks || []).forEach((x) => {
+    const title = String(x.title || '').trim();
+    if (!title) return;
+    const g = x.goal ? S.goals.find((y) => y.title === x.goal || y.title.includes(x.goal) || String(x.goal).includes(y.title)) : null;
+    const dates = (Array.isArray(x.dates) ? x.dates : x.date ? [x.date] : []).filter((d) => /^\d{4}-\d\d-\d\d$/.test(d));
+    const week = /^\d{4}-\d\d-\d\d$/.test(x.week || '') ? weekOf(x.week) : weekOf(today());
+    const group = dates.length > 1 ? uid('m') : undefined;
+    (dates.length ? dates : [null]).forEach((d) => out.push({
+      id: uid('t'), goalId: g ? g.id : null, area: g ? g.area : areaId(x.area), title, week: d ? weekOf(d) : week, date: d,
+      time: null, together: !!x.together, status: 'todo', subs: (x.steps || []).map((st) => ({ id: uid('s'), title: String(st), done: false })), manual: true, group,
+    }));
+  });
+  return out;
+}
+
+function viewPaste() {
+  if (ui.pasted) {
+    return `${topBack('חזרה', 'paste')}
+    <h1 class="serif">לבדוק ולהוסיף</h1>
+    <div class="list" inert>${ui.pasted.map((x) => taskRow(x, { showWeek: true })).join('')}</div>
+    <div class="row-btns"><button class="pill light" data-act="pasteCancel">ביטול</button><button class="pill dark" data-act="pasteOk">להוסיף ${ui.pasted.length} משימות</button></div>`;
+  }
+  return `${topBack('חזרה', 'add')}
+  <h1 class="serif">📋 משימות מ-Claude</h1>
+  <p class="lead">${t('{תבקשי|תבקש} מ-Claude להוסיף משימות, למשל: "תוסיף לי לשבוע הבא 3 משימות לשיווק". הוא ייתן קוד בתוך מסגרת. {תעתיקי|תעתיק} אותו ו{תדביקי|תדביק} כאן.')}</p>
+  <textarea rows="6" data-in="paste" placeholder="${t('{הדביקי|הדבק} כאן')}">${esc(ui.paste || '')}</textarea>
+  ${ui.err ? `<p class="warn">${esc(ui.err)}</p>` : ''}
+  <button class="pill dark wide" data-act="pasteCheck">לבדוק</button>`;
+}
+
 function viewBackup() {
   return `${topBack('חזרה', 'me')}
   <h1 class="serif">גיבוי ושחזור</h1>
@@ -938,6 +972,17 @@ const ACT = {
   },
   planCancel: () => { ui.plan = null; render(); },
   planOk: () => { importPlan(ui.plan); go('home'); toast(`התוכנית נכנסה! ${S.tasks.length} משימות עד סוף השנה 🎉`); },
+  pasteCheck: () => {
+    try {
+      const p = parseBlock(ui.paste);
+      const list = p.type === 'wemadeit-add' ? pasteTasks(p) : [];
+      if (!list.length) throw new Error('x');
+      ui.pasted = list; ui.err = null;
+    } catch (e) { ui.err = t('לא הצלחתי לקרוא את זה. {תוודאי|תוודא} שהעתקת את כל הקוד, מהסוגר הראשון עד האחרון.'); }
+    render(); window.scrollTo(0, 0);
+  },
+  pasteCancel: () => { ui.pasted = null; render(); },
+  pasteOk: () => { const n = ui.pasted.length; S.tasks.push(...ui.pasted); save(); go('bank'); toast(`נוספו ${n} משימות 🎉`); },
   planDay: (d) => {
     const x = task(d.id);
     const g = x.group || x.id;
