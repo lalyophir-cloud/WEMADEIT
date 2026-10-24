@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '24.10 · הדבקת משימות מ-Claude';
+const VERSION = '25.10 · הדבקה עם חזרות';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -305,6 +305,7 @@ function taskRow(x, opts = {}) {
   if (x.time) meta.push(x.time);
   if (opts.showWeek) meta.push(x.date ? `${DAYS[pd(x.date).getDay()]} ${short(x.date)}` : `שבוע ${weekNum(x.week)} · עוד לא שובץ`);
   if (x.subs.length) meta.push(`${x.subs.filter((s) => s.done).length}/${x.subs.length} צעדים קטנים`);
+  if (opts.extra) meta.push(opts.extra);
   return `<div class="trow${x.status === 'done' ? ' done' : ''}${late ? ' late' : ''}">
     <span class="dot" style="background:${a.color}"></span>
     <button class="tbody" data-act="open" data-id="${x.id}">
@@ -893,12 +894,23 @@ function pasteTasks(p) {
     const title = String(x.title || '').trim();
     if (!title) return;
     const g = x.goal ? S.goals.find((y) => y.title === x.goal || y.title.includes(x.goal) || String(x.goal).includes(y.title)) : null;
-    const dates = (Array.isArray(x.dates) ? x.dates : x.date ? [x.date] : []).filter((d) => /^\d{4}-\d\d-\d\d$/.test(d));
-    const week = /^\d{4}-\d\d-\d\d$/.test(x.week || '') ? weekOf(x.week) : weekOf(today());
-    const group = dates.length > 1 ? uid('m') : undefined;
+    const isDate = (d) => /^\d{4}-\d\d-\d\d$/.test(d || '');
+    let dates = (Array.isArray(x.dates) ? x.dates : x.date ? [x.date] : []).filter(isDate);
+    // חזרה: "every" ימים, מ-"from" עד "until" (ברירת מחדל: מהיום עד סוף השנה)
+    const every = Math.max(0, parseInt(x.every, 10) || 0);
+    let series, rep;
+    if (every) {
+      dates = [];
+      for (let d = isDate(x.from) ? x.from : today(); d <= (isDate(x.until) ? x.until : END) && dates.length < 400; d = addDays(d, every)) dates.push(d);
+      series = uid('r');
+      rep = every === 1 ? 'כל יום' : every === 7 ? 'כל שבוע' : `כל ${every} ימים`;
+    }
+    const week = isDate(x.week) ? weekOf(x.week) : weekOf(today());
+    const group = !series && dates.length > 1 ? uid('m') : undefined;
     (dates.length ? dates : [null]).forEach((d) => out.push({
       id: uid('t'), goalId: g ? g.id : null, area: g ? g.area : areaId(x.area), title, week: d ? weekOf(d) : week, date: d,
       time: null, together: !!x.together, status: 'todo', subs: (x.steps || []).map((st) => ({ id: uid('s'), title: String(st), done: false })), manual: true, group,
+      series, rep, base: title, suffix: '',
     }));
   });
   return out;
@@ -908,8 +920,8 @@ function viewPaste() {
   if (ui.pasted) {
     return `${topBack('חזרה', 'paste')}
     <h1 class="serif">לבדוק ולהוסיף</h1>
-    <div class="list" inert>${ui.pasted.map((x) => taskRow(x, { showWeek: true })).join('')}</div>
-    <div class="row-btns"><button class="pill light" data-act="pasteCancel">ביטול</button><button class="pill dark" data-act="pasteOk">להוסיף ${ui.pasted.length} משימות</button></div>`;
+    <div class="list" inert>${ui.pasted.filter((x, i, arr) => !x.series || arr.findIndex((y) => y.series === x.series) === i).map((x) => taskRow(x, { showWeek: true, extra: x.series ? `🔁 ${x.rep} (${ui.pasted.filter((y) => y.series === x.series).length} פעמים)` : '' })).join('')}</div>
+    <div class="row-btns"><button class="pill light" data-act="pasteCancel">ביטול</button><button class="pill dark" data-act="pasteOk">להוסיף ${new Set(ui.pasted.map((x) => x.series || x.group || x.id)).size} משימות</button></div>`;
   }
   return `${topBack('חזרה', 'add')}
   <h1 class="serif">📋 משימות מ-Claude</h1>
@@ -982,7 +994,7 @@ const ACT = {
     render(); window.scrollTo(0, 0);
   },
   pasteCancel: () => { ui.pasted = null; render(); },
-  pasteOk: () => { const n = ui.pasted.length; S.tasks.push(...ui.pasted); save(); go('bank'); toast(`נוספו ${n} משימות 🎉`); },
+  pasteOk: () => { const n = new Set(ui.pasted.map((x) => x.series || x.group || x.id)).size; S.tasks.push(...ui.pasted); save(); go('bank'); toast(`נוספו ${n} משימות 🎉`); },
   planDay: (d) => {
     const x = task(d.id);
     const g = x.group || x.id;
