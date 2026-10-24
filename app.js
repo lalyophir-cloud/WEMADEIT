@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '24.10 · תכנון שבוע באפליקציה';
+const VERSION = '24.10 · כמה ימים למשימה';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -659,13 +659,18 @@ function viewWeekly() {
   const list = S.tasks.filter((x) => x.status !== 'done' && (inWeek(x) || (x.week < w && isLate(x))))
     .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })); // סדר קבוע, כדי שמשימה לא תקפוץ כשמשבצים אותה
   const load = days.map((d) => S.tasks.filter((x) => x.date === d).length);
-  const row = (x) => {
+  // משימה שסומנה לכמה ימים היא כמה עותקים עם אותו group. מציגים שורה אחת לכל group
+  const groups = [];
+  list.forEach((x) => { const g = groups.find((y) => (y[0].group || y[0].id) === (x.group || x.id)); if (g) g.push(x); else groups.push([x]); });
+  const row = (members) => {
+    const x = members[0];
+    const dates = S.tasks.filter((y) => (y.group || y.id) === (x.group || x.id) && y.date && weekOf(y.date) === w).map((y) => y.date);
     const a = area(x.area), g = goal(x.goalId);
     return `<div class="plan-row">
       <div class="plan-top"><span class="dot" style="background:${a.color}"></span>
         <button class="tbody" data-act="open" data-id="${x.id}"><span class="ttl">${x.together ? '⭐ ' : ''}${esc(x.title)}</span>
         <span class="meta">${!inWeek(x) ? '<em>נדחה</em> · ' : ''}${esc(g ? `${a.name}: ${g.title}` : a.name)}</span></button></div>
-      <div class="plan-days">${days.map((d, i) => `<button class="${x.date === d ? 'on' : ''}${wk.together === d ? ' tog' : ''}" data-act="planDay" data-id="${x.id}" data-d="${d}" data-w="${w}" aria-label="יום ${DAYS[i]}">${DAY_LETTERS[i]}'</button>`).join('')}
+      <div class="plan-days">${days.map((d, i) => `<button class="${dates.includes(d) ? 'on' : ''}${wk.together === d ? ' tog' : ''}" data-act="planDay" data-id="${x.id}" data-d="${d}" data-w="${w}" aria-label="יום ${DAYS[i]}">${DAY_LETTERS[i]}'</button>`).join('')}
         <button class="later" data-act="planNext" data-id="${x.id}" data-w="${w}" aria-label="לשבוע הבא">←</button></div>
     </div>`;
   };
@@ -681,9 +686,9 @@ function viewWeekly() {
       <div class="daypick">${days.map((d) => `<button class="${wk.together === d ? 'on' : ''}" data-act="together" data-w="${w}" data-d="${d}"><b>${DAYS[pd(d).getDay()]}</b><span>${short(d)}</span></button>`).join('')}
       <button class="none${wk.together === 'none' ? ' on' : ''}" data-act="together" data-w="${w}" data-d="none">אין השבוע</button></div>
       <label class="small" for="ttime">שעות (לא חובה)</label><input id="ttime" type="text" placeholder="למשל 10:00-14:00" value="${esc(wk.time || '')}" data-ch="ttime" data-w="${w}">` },
-    { title: `משבצים את המשימות (${list.length})`, body: `<p>${t('לכל משימה {בוחרים|בוחרים} יום. לחיצה נוספת מבטלת. החץ ← מעביר לשבוע הבא. היום המשותף מסומן בוורוד 💛')}</p>
+    { title: `משבצים את המשימות (${groups.length})`, body: `<p>${t('לכל משימה {בוחרים|בוחרים} יום, או כמה ימים. לחיצה נוספת מבטלת. החץ ← מעביר לשבוע הבא. היום המשותף מסומן בוורוד 💛')}</p>
       <div class="load">${days.map((d, i) => `<span class="${load[i] ? 'has' : ''}${wk.together === d ? ' tog' : ''}"><b>${DAY_LETTERS[i]}'</b>${load[i]}</span>`).join('')}</div>
-      ${list.length ? `<div class="list">${list.map(row).join('')}</div>` : `<p class="muted small">${t('אין משימות לשבוע הזה. אפשר להוסיף, או לבנות תוכנית עם Claude.')}</p>`}
+      ${groups.length ? `<div class="list">${groups.map(row).join('')}</div>` : `<p class="muted small">${t('אין משימות לשבוע הזה. אפשר להוסיף, או לבנות תוכנית עם Claude.')}</p>`}
       <button class="pill light" data-act="planAdd" data-w="${w}">+ משימה חדשה לשבוע</button>` },
     { title: 'סיימנו!', body: `<p>${t('אפשר לחזור ולשנות בכל רגע.')}</p><button class="pill dark wide" data-act="planDone" data-w="${w}">✓ השבוע מתוכנן</button>` },
   ])}
@@ -935,9 +940,24 @@ const ACT = {
   planOk: () => { importPlan(ui.plan); go('home'); toast(`התוכנית נכנסה! ${S.tasks.length} משימות עד סוף השנה 🎉`); },
   planDay: (d) => {
     const x = task(d.id);
-    if (x.date === d.d) { x.date = null; x.time = null; x.week = d.w; } else { x.date = d.d; x.week = d.w; }
+    const g = x.group || x.id;
+    const members = S.tasks.filter((y) => (y.group || y.id) === g && (y.date ? weekOf(y.date) === d.w : y.week === d.w));
+    const onDay = members.find((y) => y.date === d.d);
+    if (onDay) {
+      // מבטלים יום: אם יש עוד עותקים, מוחקים את זה (אלא אם כבר התחילו בו), אחרת רק מורידים את התאריך
+      if (members.length > 1 && onDay.status === 'todo' && !onDay.subs.length) S.tasks = S.tasks.filter((y) => y !== onDay);
+      else { onDay.date = null; onDay.time = null; onDay.week = d.w; }
+    } else {
+      const free = members.find((y) => !y.date);
+      if (free) { free.date = d.d; free.week = d.w; }
+      else {
+        x.group = g;
+        S.tasks.push({ ...x, id: uid('t'), date: d.d, week: d.w, time: null, status: 'todo', subs: [], group: g });
+      }
+    }
     save(); V.w = d.w; keepScroll();
   },
+
   planNext: (d) => { const x = task(d.id); x.week = addDays(d.w, 7); x.date = null; x.time = null; save(); V.w = d.w; toast('עבר לשבוע הבא'); },
   planAdd: (d) => go('add', { back: 'weekly', w: d.w }),
   planDone: (d) => { S.weeks[d.w] = { ...(S.weeks[d.w] || {}), planned: true }; save(); go('week', { w: d.w }); toast('השבוע מתוכנן! שבוע מוצלח 💛'); },
