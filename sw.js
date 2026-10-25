@@ -1,6 +1,6 @@
 // שומר עותק של האפליקציה, כדי שתיפתח גם בלי אינטרנט.
-// קודם מנסים להביא גרסה חדשה מהרשת (בלי זיכרון מטמון של הדפדפן), ורק אם אין רשת משתמשים בעותק.
-const CACHE = 'wemadeit-v2';
+// קודם מנסים להביא גרסה חדשה מהרשת, ורק אם אין רשת משתמשים בעותק.
+const CACHE = 'wemadeit-v3';
 const FILES = ['./', './index.html', './styles.css', './app.js', './questions.js', './manifest.webmanifest', './icons/icon-192.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -15,7 +15,9 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   const own = url.origin === self.location.origin;
-  const req = !own ? e.request : new Request(url.href, { cache: 'no-cache', credentials: 'same-origin' });
+  // פרמטר ייחודי עוקף גם את זיכרון המטמון של השרת של GitHub (עד 10 דקות), כדי שעדכון יגיע מיד
+  const fresh = own ? `${url.origin}${url.pathname}?fresh=${Date.now()}` : null;
+  const req = !own ? e.request : new Request(fresh, { cache: 'no-store', credentials: 'same-origin' });
   e.respondWith(
     fetch(req)
       .then((r) => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); } return r; })

@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '25.10 · מה שבוצע יורד למטה';
+const VERSION = '25.10 · עדכונים מיידיים';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -600,7 +600,8 @@ function viewMe() {
     <button class="pill light wide" data-act="go" data-v="remindSetup">🔔 תזכורות באייפון${S.remind.on ? ' ✓' : ''}</button>
     <button class="pill light wide" data-act="go" data-v="backup">גיבוי ושחזור</button>
   </div>
-  <p class="muted small center">גרסה: ${VERSION}</p>`;
+  <p class="muted small center">גרסה: ${VERSION}</p>
+  <button class="pill light wide" data-act="update">🔄 בדיקת עדכון</button>`;
 }
 
 function viewQuest() {
@@ -1008,6 +1009,11 @@ const ACT = {
   },
   pasteCancel: () => { ui.pasted = null; render(); },
   pasteOk: () => { const n = new Set(ui.pasted.map((x) => x.series || x.group || x.id)).size; S.tasks.push(...ui.pasted); save(); go('bank'); toast(`נוספו ${n} משימות 🎉`); },
+  update: async () => {
+    toast('בודקת עדכון...');
+    try { const r = await navigator.serviceWorker.getRegistration(); if (r) await r.update(); } catch (e) { /* בלי רשת */ }
+    location.replace(`${location.pathname}?v=${Date.now()}`);
+  },
   planDay: (d) => {
     const x = task(d.id);
     const g = x.group || x.id;
