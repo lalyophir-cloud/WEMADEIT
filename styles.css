@@ -249,3 +249,13 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .claude-way summary::-webkit-details-marker { display: none; }
 .claude-way[open] summary { margin-bottom: 12px; }
 .claude-way .step { background: var(--bg); }
+
+/* מסדרים את מחר */
+.tm-count { flex-direction: row; align-items: baseline; gap: 8px; flex-wrap: wrap; background: #EDE6FA; }
+.tm-count b { font-size: 28px; }
+.tm-sec { display: flex; flex-direction: column; gap: 8px; }
+.tm-row { background: var(--card); border-radius: 20px; padding: 8px 12px; display: flex; gap: 10px; align-items: center; min-height: 60px; }
+.tm-row.done .ttl { text-decoration: line-through; color: var(--muted); }
+.tm-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.tm-btns button { min-height: 40px; min-width: 40px; border: 0; border-radius: 999px; background: var(--line); padding: 0 12px; font-size: 13px; }
+.tm-btns button.add { background: var(--ink); color: var(--bg); font-weight: 600; }

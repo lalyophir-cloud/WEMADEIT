@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '25.10 · עדכונים מיידיים';
+const VERSION = '25.10 · מסדרים את מחר';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -261,7 +261,7 @@ function toast(msg) {
 
 function render() {
   if (!S.user) { app.innerHTML = viewWelcome(); return; }
-  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, remindSetup: viewRemind, paste: viewPaste };
+  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, tomorrow: viewTomorrow, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, remindSetup: viewRemind, paste: viewPaste };
   const tabs = ['home', 'week', 'month', 'bank', 'me'];
   const v = views[V.name] ? V.name : 'home';
   app.innerHTML = `<main class="screen${tabs.includes(v) ? ' has-nav' : ''}">${views[v]()}</main>${tabs.includes(v) ? nav(v) : ''}${ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : ''}`;
@@ -371,6 +371,7 @@ function viewHome() {
   ${!isStandalone() ? `<div class="card hint"><b>טיפ חשוב:</b> ${t('{תוסיפי|תוסיף}')} את האפליקציה למסך הבית, ו${t('{תפתחי|תפתח}')} אותה רק משם, כדי שהכל יישמר. בספארי: כפתור השיתוף ${icon('share', 16)} ואז "הוספה למסך הבית".</div>` : ''}
   ${ring()}
   ${S.tasks.some((x) => x.status !== 'done') ? `<button class="boost-btn" data-act="go" data-v="boost">⚡ יש לי זמן ומוטיבציה<small>${t('{בואי|בוא} נראה במה אפשר להתקדם עכשיו')}</small></button>` : ''}
+  ${S.tasks.length ? `<button class="pill light wide" data-act="go" data-v="tomorrow">🌙 מסדרים את מחר</button>` : ''}
   ${step ? `<section class="card next">
     <span class="label">הצעד הבא · שלב ${step.n}</span>
     <h2>${esc(step.title)}</h2>
@@ -486,6 +487,35 @@ function suggestions(time) {
     items.push({ x, score: base + (time === 'long' ? 15 : time === 'short' ? -10 : 0) + hash(x.id) - (tooLong ? 60 : 0), why });
   });
   return items.sort((a, b) => b.score - a.score);
+}
+
+// מסדרים את מחר: מה כבר מתוכנן, מה נשאר מהיום, ומה אפשר להוסיף
+function viewTomorrow() {
+  const td = today(), tm = addDays(td, 1);
+  const planned = S.tasks.filter((x) => x.date === tm).sort(byDay);
+  const leftToday = S.tasks.filter((x) => x.date === td && x.status !== 'done');
+  const more = S.tasks.filter((x) => x.status !== 'done' && x.date !== td && x.date !== tm && (isLate(x) || (!x.date && x.week === weekOf(tm))))
+    .sort((a, b) => Number(isLate(b)) - Number(isLate(a)));
+  const row = (x, btns) => {
+    const a = area(x.area), g = goal(x.goalId);
+    return `<div class="tm-row${x.status === 'done' ? ' done' : ''}"><span class="dot" style="background:${a.color}"></span>
+      <button class="tbody" data-act="open" data-id="${x.id}"><span class="ttl">${x.together ? '⭐ ' : ''}${esc(x.title)}</span>
+      <span class="meta">${isLate(x) ? '<em>נדחה</em> · ' : ''}${esc(g ? `${a.name}: ${g.title}` : a.name)}</span></button>
+      <div class="tm-btns">${btns}</div></div>`;
+  };
+  const sec = (title, sub, items) => `<section class="tm-sec"><div class="sec-head"><h2 class="serif sm">${title}</h2><span class="muted small">${items.length}</span></div>${sub ? `<p class="muted small">${sub}</p>` : ''}<div class="list">${items.join('')}</div></section>`;
+  const wk = S.weeks[weekOf(tm)] || {};
+  return `${topBack()}
+  <h1 class="serif">🌙 מסדרים את מחר</h1>
+  <p class="lead">${fmtDay(tm)}${wk.together === tm ? ` · 💛 יום העבודה המשותף עם ${esc(me().partner)}` : ''}</p>
+  <div class="card tm-count"><b>${planned.filter((x) => x.status !== 'done').length}</b> משימות מחר${(S.answers.schedule && S.answers.schedule.a && S.answers.schedule.a[0]) ? `<span class="muted small">${t('כתבת שמתאים לך:')} ${esc(S.answers.schedule.a[0])}</span>` : ''}</div>
+  ${sec('מתוכנן למחר', planned.length ? '' : 'עוד אין כלום. אפשר להוסיף מלמטה 👇', planned.map((x) => row(x,
+    `<button data-act="tmMove" data-id="${x.id}" data-to="later" aria-label="להוציא ממחר">✕</button><button data-act="tmMove" data-id="${x.id}" data-to="after">מחרתיים</button>`)))}
+  ${leftToday.length ? sec('נשאר פתוח מהיום', 'להעביר למחר, או להשאיר להיום אם עוד יש זמן.', leftToday.map((x) => row(x, `<button class="add" data-act="tmMove" data-id="${x.id}" data-to="tomorrow">+ מחר</button>`)))
+    + `<button class="pill light" data-act="tmAllToday">${t('להעביר את כל מה שנשאר למחר')}</button>` : ''}
+  ${more.length ? sec('אפשר להוסיף', 'מה שנדחה, ומשימות של השבוע שעוד לא קיבלו יום.', more.map((x) => row(x, `<button class="add" data-act="tmMove" data-id="${x.id}" data-to="tomorrow">+ מחר</button>`))) : ''}
+  <button class="pill light" data-act="planAdd" data-w="${weekOf(tm)}" data-date="${tm}">+ משימה חדשה למחר</button>
+  <button class="pill dark wide" data-act="tmDone">✓ מחר מסודר. לילה טוב 🌙</button>`;
 }
 
 function viewBoost() {
@@ -793,7 +823,7 @@ function togetherFor(x) {
 const REPS = [['once', 'פעם אחת'], ['daily', 'כל יום'], ['days', 'בימים קבועים'], ['weekly', 'כמה פעמים בשבוע'], ['monthly', 'פעם בחודש']];
 
 function viewAdd() {
-  const f = ui.add || (ui.add = { title: '', area: AREAS[0].id, goal: V.g || '', together: false, rep: 'once', date: '', time: '', days: [], n: 3, start: V.w && V.w > today() ? V.w : today(), end: END, week: V.w || null });
+  const f = ui.add || (ui.add = { title: '', area: AREAS[0].id, goal: V.g || '', together: false, rep: 'once', date: V.date || '', time: '', days: [], n: 3, start: V.w && V.w > today() ? V.w : today(), end: END, week: V.w || null });
   const count = repeatDates(f).length;
   return `${topBack('חזרה', V.back || 'home')}
   <h1 class="serif">משימה חדשה</h1>
@@ -1014,6 +1044,19 @@ const ACT = {
     try { const r = await navigator.serviceWorker.getRegistration(); if (r) await r.update(); } catch (e) { /* בלי רשת */ }
     location.replace(`${location.pathname}?v=${Date.now()}`);
   },
+  tmMove: (d) => {
+    const x = task(d.id), tm = addDays(today(), 1);
+    if (d.to === 'tomorrow') { x.date = tm; x.week = weekOf(tm); }
+    else if (d.to === 'after') { x.date = addDays(tm, 1); x.week = weekOf(x.date); }
+    else { x.date = null; x.time = null; x.week = weekOf(tm); }
+    save(); keepScroll();
+  },
+  tmAllToday: () => {
+    const td = today(), tm = addDays(td, 1);
+    S.tasks.filter((x) => x.date === td && x.status !== 'done').forEach((x) => { x.date = tm; x.week = weekOf(tm); });
+    save(); toast('הכל עבר למחר');
+  },
+  tmDone: () => { go('home'); toast(t('מחר מחכה לך מסודר. לילה טוב 🌙')); },
   planDay: (d) => {
     const x = task(d.id);
     const g = x.group || x.id;
@@ -1035,7 +1078,7 @@ const ACT = {
   },
 
   planNext: (d) => { const x = task(d.id); x.week = addDays(d.w, 7); x.date = null; x.time = null; save(); V.w = d.w; toast('עבר לשבוע הבא'); },
-  planAdd: (d) => go('add', { back: 'weekly', w: d.w }),
+  planAdd: (d) => go('add', { back: V.name, w: d.w, date: d.date }),
   planDone: (d) => { S.weeks[d.w] = { ...(S.weeks[d.w] || {}), planned: true }; save(); go('week', { w: d.w }); toast('השבוע מתוכנן! שבוע מוצלח 💛'); },
   together: (d) => { S.weeks[d.w] = { ...(S.weeks[d.w] || {}), together: d.d }; save(); V.w = d.w; keepScroll(); },
   weekOk: (d) => {
@@ -1137,7 +1180,7 @@ const ACT = {
       week: o.week, date: o.date, time: o.date ? f.time || null : null, together: f.together, status: 'todo', subs: [], manual: true,
       series, rep: series ? repText(f) : undefined,
     }));
-    save(); if (V.back === 'weekly') go('weekly', { w: V.w }); else go('home');
+    save(); if (V.back === 'weekly' || V.back === 'tomorrow') go(V.back, { w: V.w }); else go('home');
     toast(series ? `נוספו ${list.length} משימות, ${repText(f)} 🔁` : 'נוסף!');
   },
 
