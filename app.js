@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '25.10 · הדף נשאר במקום';
+const VERSION = '25.10 · מה שבוצע יורד למטה';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -55,6 +55,8 @@ const areaId = (name) => {
 const goal = (id) => S.goals.find((g) => g.id === id);
 const task = (id) => S.tasks.find((x) => x.id === id);
 const isLate = (x) => x.status !== 'done' && ((x.date && x.date < today()) || (!x.date && addDays(x.week, 6) < today()));
+// סדר משימות של יום: מה שבוצע יורד לסוף, והשאר לפי שעה
+const byDay = (a, b) => Number(a.status === 'done') - Number(b.status === 'done') || (a.time || '99').localeCompare(b.time || '99');
 const pct = (list) => (list.length ? Math.round((list.filter((x) => x.status === 'done').length / list.length) * 100) : 0);
 const isStandalone = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 
@@ -358,7 +360,7 @@ function viewHome() {
   const td = today();
   const step = nextStep();
   const late = S.tasks.filter(isLate);
-  const todays = S.tasks.filter((x) => x.date === td).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+  const todays = S.tasks.filter((x) => x.date === td).sort(byDay);
   const wk = S.weeks[weekOf(td)] || {};
   const unscheduled = S.tasks.filter((x) => !x.date && x.week === weekOf(td) && x.status !== 'done');
   return `
@@ -407,7 +409,7 @@ function viewWeek() {
   ${canPlan ? `<section class="card next"><span class="label">הצעד הבא</span><h2>לתכנן את השבוע</h2><p>${t('לבחור יום משותף ולשבץ את המשימות לפי היומן.')}</p><button class="pill dark" data-act="go" data-v="weekly" data-w="${w}">${t('{בואי|בוא} נתכנן')}</button></section>` : ''}
   ${wk.together && wk.together !== 'none' ? `<div class="card together">💛 יום עבודה משותף: ${fmtDay(wk.together)}${wk.time ? `, ${esc(wk.time)}` : ''}</div>` : ''}
   ${days.map((d) => {
-    const list = inWeek.filter((x) => x.date === d).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+    const list = inWeek.filter((x) => x.date === d).sort(byDay);
     return `<div class="day${d === today() ? ' is-today' : ''}"><div class="day-h"><b>${DAYS[pd(d).getDay()]}</b> <span>${short(d)}</span>${wk.together === d ? ' <span class="chip">💛 יחד</span>' : ''}</div>
     ${list.length ? `<div class="list">${list.map((x) => taskRow(x)).join('')}</div>` : '<p class="muted small pad">-</p>'}</div>`;
   }).join('')}
@@ -430,7 +432,7 @@ function viewMonth() {
     const tog = (S.weeks[weekOf(day)] || {}).together === day;
     cells.push(`<button class="cell${day === sel ? ' sel' : ''}${day === today() ? ' tdy' : ''}${tog ? ' tog' : ''}" data-act="day" data-d="${day}"><span>${d}</span><i>${list.slice(0, 3).map((x) => `<s style="background:${x.status === 'done' ? '#1C1B19' : area(x.area).color}"></s>`).join('')}</i></button>`);
   }
-  const selList = S.tasks.filter((x) => x.date === sel);
+  const selList = S.tasks.filter((x) => x.date === sel).sort(byDay);
   const monthAll = S.tasks.filter((x) => (x.date || x.week).startsWith(m));
   return `
   <div class="sec-head"><h1 class="serif">לוח זמנים</h1></div>
