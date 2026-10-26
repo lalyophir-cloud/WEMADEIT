@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '25.10 · מסדרים את מחר';
+const VERSION = '26.10 · מדברים עם Claude';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -261,7 +261,7 @@ function toast(msg) {
 
 function render() {
   if (!S.user) { app.innerHTML = viewWelcome(); return; }
-  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, tomorrow: viewTomorrow, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, remindSetup: viewRemind, paste: viewPaste };
+  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, tomorrow: viewTomorrow, chat: viewChat, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, remindSetup: viewRemind, paste: viewPaste };
   const tabs = ['home', 'week', 'month', 'bank', 'me'];
   const v = views[V.name] ? V.name : 'home';
   app.innerHTML = `<main class="screen${tabs.includes(v) ? ' has-nav' : ''}">${views[v]()}</main>${tabs.includes(v) ? nav(v) : ''}${ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : ''}`;
@@ -371,6 +371,7 @@ function viewHome() {
   ${!isStandalone() ? `<div class="card hint"><b>טיפ חשוב:</b> ${t('{תוסיפי|תוסיף}')} את האפליקציה למסך הבית, ו${t('{תפתחי|תפתח}')} אותה רק משם, כדי שהכל יישמר. בספארי: כפתור השיתוף ${icon('share', 16)} ואז "הוספה למסך הבית".</div>` : ''}
   ${ring()}
   ${S.tasks.some((x) => x.status !== 'done') ? `<button class="boost-btn" data-act="go" data-v="boost">⚡ יש לי זמן ומוטיבציה<small>${t('{בואי|בוא} נראה במה אפשר להתקדם עכשיו')}</small></button>` : ''}
+  ${S.tasks.length ? `<button class="pill light wide" data-act="go" data-v="chat">💬 לדבר עם Claude על המשימות</button>` : ''}
   ${S.tasks.length ? `<button class="pill light wide" data-act="go" data-v="tomorrow">🌙 מסדרים את מחר</button>` : ''}
   ${step ? `<section class="card next">
     <span class="label">הצעד הבא · שלב ${step.n}</span>
@@ -960,6 +961,125 @@ function pasteTasks(p) {
   return out;
 }
 
+// "כמעט צ'אט": שולחים ל-Claude את המשימות, מדברים איתו, ומדביקים בחזרה רשימת שינויים
+function chatPrompt() {
+  const u = me(), td = today();
+  const when = (x) => (x.date ? `${x.date} (${DAYS[pd(x.date).getDay()]})` : `שבוע ${x.week}, בלי יום`);
+  const line = (x) => {
+    const g = goal(x.goalId);
+    return `- [${x.id}] ${x.title} · ${area(x.area).name}${g ? ` · מטרה: ${g.title}` : ''} · ${when(x)}${x.status === 'doing' ? ' · בתהליך' : ''}${isLate(x) ? ' · נדחה' : ''}${x.together ? ' · ⭐' : ''}${x.subs.length ? ` · צעדים: ${x.subs.map((y) => `${y.done ? '✓' : '○'} ${y.title}`).join(', ')}` : ''}`;
+  };
+  const open = S.tasks.filter((x) => x.status !== 'done');
+  const single = open.filter((x) => !x.series).sort((a, b) => (a.date || a.week).localeCompare(b.date || b.week));
+  const series = [...new Set(open.filter((x) => x.series).map((x) => x.series))].map((id) => {
+    const all = open.filter((x) => x.series === id).sort((a, b) => a.date.localeCompare(b.date));
+    const soon = all.filter((x) => x.date <= addDays(td, 7));
+    return `- סדרה [${id}] ${all[0].title} · ${area(all[0].area).name} · ${all[0].rep || 'חוזרת'} · עוד ${all.length} פעמים, הבאה ${all[0].date}${soon.length ? `\n  בשבוע הקרוב: ${soon.map((x) => `[${x.id}] ${x.date}`).join(', ')}` : ''}`;
+  });
+  return t(`היי Claude 💛 אני ${u.name}. {פנה אליי בלשון נקבה|פנה אליי בלשון זכר}, בעברית קצרה וחמה.
+אני {משתמשת|משתמש} באפליקציית משימות אישית בשם WEMADEIT. למטה כל המשימות הפתוחות שלי. אני רוצה לדבר איתך ולסדר אותן: להזיז, להוסיף, למחוק, לפרק לצעדים, לסמן מה עשיתי. אתה יכול גם להציע רעיונות, למשל אם יום מסוים עמוס מדי.
+
+היום: ${fmtDay(td)} (${td}).
+התחומים: ${AREAS.map((a) => a.name).join(', ')}
+${S.goals.length ? `המטרות שלי: ${S.goals.map((g) => `${g.title} (${area(g.area).name})`).join(' · ')}\n` : ''}
+איך עובדים:
+1. נדבר חופשי. אל תוציא קוד באמצע השיחה.
+2. כשאכתוב "סיימנו" (או "תן קוד"), תסכם במשפט מה משתנה, ותוציא בלוק קוד אחד עם JSON תקין, בפורמט הזה בדיוק:
+
+${fence}json
+{ "type": "wemadeit-changes", "actions": [
+  { "do": "move", "id": "t12", "date": "${addDays(td, 1)}" },
+  { "do": "move", "id": "t13", "week": "${addDays(weekOf(td), 7)}" },
+  { "do": "done", "id": "t14" },
+  { "do": "delete", "id": "t15" },
+  { "do": "delete", "id": "t16", "all_repeats": true },
+  { "do": "edit", "id": "t17", "title": "שם חדש", "area": "שיווק", "together": true },
+  { "do": "step", "id": "t18", "title": "צעד קטן חדש" },
+  { "do": "add", "title": "משימה חדשה", "area": "עבודה", "date": "${addDays(td, 2)}" },
+  { "do": "add", "title": "כמה ימים", "area": "שיווק", "dates": ["${addDays(td, 1)}", "${addDays(td, 3)}"] },
+  { "do": "add", "title": "חוזרת", "area": "שיווק", "every": 2, "from": "${td}", "until": "2026-12-31", "steps": ["צעד 1"] }
+] }
+${fence}
+
+כללים לקוד:
+- id: בדיוק כמו בסוגריים המרובעים ברשימה. אל תמציא id.
+- תאריכים בפורמט YYYY-MM-DD. "date": null מוציא את המשימה מהיום (נשארת בשבוע שלה). "week" הוא תאריך יום ראשון של השבוע.
+- "all_repeats": true מוחק את המשימה הזו וכל החזרות הבאות שלה.
+- להוסיף משימה למטרה קיימת: "goal" עם שם המטרה.
+- רק השינויים שסיכמנו, בלי שום טקסט בתוך הבלוק.
+
+המשימות הפתוחות שלי:
+${single.map(line).join('\n') || '(אין)'}
+${series.length ? `\nמשימות חוזרות:\n${series.join('\n')}` : ''}
+
+${S.answers.schedule && S.answers.schedule.a && S.answers.schedule.a[0] ? `כמה משימות ביום מתאים לי: ${S.answers.schedule.a[0]}\n\n` : ''}במה {את|אתה} רוצה שנתחיל? (אני אגיד לך)`);
+}
+
+// מפרש רשימת שינויים ל"תוכנית" שאפשר להציג ואז להחיל
+function readChanges(p) {
+  const isDate = (d) => /^\d{4}-\d\d-\d\d$/.test(d || '');
+  const ops = [];
+  (p.actions || []).forEach((a) => {
+    if (a.do === 'add') { const list = pasteTasks({ tasks: [a] }); if (list.length) ops.push({ kind: 'add', list }); return; }
+    const id = String(a.id || '').replace(/[\[\]\s]/g, '');
+    // מזהה של סדרה (r..) מצביע על החזרה הפתוחה הקרובה שלה
+    const x = task(id) || S.tasks.filter((y) => y.series === id && y.status !== 'done').sort((m, n) => m.date.localeCompare(n.date))[0];
+    if (!x) { ops.skipped = (ops.skipped || 0) + 1; return; }
+    if (a.do === 'move' && (isDate(a.date) || a.date === null || isDate(a.week))) ops.push({ kind: 'move', x, date: isDate(a.date) ? a.date : null, week: isDate(a.week) ? weekOf(a.week) : null });
+    else if (a.do === 'done' || a.do === 'undone') ops.push({ kind: a.do, x });
+    else if (a.do === 'delete') ops.push({ kind: 'delete', x, list: a.all_repeats && x.series ? seriesFrom(x) : [x] });
+    else if (a.do === 'edit') ops.push({ kind: 'edit', x, title: a.title ? String(a.title) : null, area: a.area ? areaId(a.area) : null, together: typeof a.together === 'boolean' ? a.together : null });
+    else if (a.do === 'step' && a.title) ops.push({ kind: 'step', x, title: String(a.title) });
+  });
+  return ops;
+}
+
+function opText(o) {
+  const n = (x) => `"${x.title}"`;
+  if (o.kind === 'add') return `➕ הוספה: ${n(o.list[0])}${o.list.length > 1 ? ` (${o.list.length} ${o.list[0].series ? `פעמים, ${o.list[0].rep}` : 'ימים'})` : o.list[0].date ? `, ${fmtDay(o.list[0].date)}` : ''}`;
+  if (o.kind === 'move') return `📅 הזזה: ${n(o.x)} ← ${o.date ? fmtDay(o.date) : `שבוע ${weekRange(o.week || o.x.week)}, בלי יום`}`;
+  if (o.kind === 'done') return `✓ בוצע: ${n(o.x)}`;
+  if (o.kind === 'undone') return `↩️ לא בוצע: ${n(o.x)}`;
+  if (o.kind === 'delete') return `🗑️ מחיקה: ${n(o.x)}${o.list.length > 1 ? ` וכל ${o.list.length - 1} החזרות הבאות` : ''}`;
+  if (o.kind === 'edit') return `✏️ עריכה: ${n(o.x)}${o.title ? ` ← "${o.title}"` : ''}${o.area ? ` · ${area(o.area).name}` : ''}${o.together !== null ? (o.together ? ' · ⭐' : ' · בלי ⭐') : ''}`;
+  if (o.kind === 'step') return `➕ צעד קטן ב-${n(o.x)}: ${o.title}`;
+  return '';
+}
+
+function applyChanges(ops) {
+  ops.forEach((o) => {
+    if (o.kind === 'add') S.tasks.push(...o.list);
+    else if (o.kind === 'move') { o.x.date = o.date; o.x.time = o.date ? o.x.time : null; o.x.week = o.date ? weekOf(o.date) : (o.week || o.x.week); }
+    else if (o.kind === 'done') o.x.status = 'done';
+    else if (o.kind === 'undone') o.x.status = 'todo';
+    else if (o.kind === 'delete') { const ids = new Set(o.list.map((y) => y.id)); S.tasks = S.tasks.filter((y) => !ids.has(y.id)); }
+    else if (o.kind === 'edit') { if (o.title) { o.x.title = o.title; o.x.base = o.title; } if (o.area && !o.x.goalId) o.x.area = o.area; if (o.together !== null) o.x.together = o.together; }
+    else if (o.kind === 'step') o.x.subs.push({ id: uid('s'), title: o.title, done: false });
+  });
+  save();
+}
+
+function viewChat() {
+  if (ui.changes) {
+    return `${topBack('חזרה', 'chat')}
+    <h1 class="serif">אלה השינויים</h1>
+    <p class="lead">${t('{תעברי|תעבור} עליהם. אם הכל נכון, {תאשרי|תאשר}.')}</p>
+    <div class="card changes">${ui.changes.map((o) => `<p>${esc(opText(o))}</p>`).join('')}</div>
+    ${ui.changes.skipped ? `<p class="warn">${ui.changes.skipped} שינויים לא זוהו (משימה שלא קיימת), אז הם לא ייכנסו.</p>` : ''}
+    <div class="row-btns"><button class="pill light" data-act="chatCancel">ביטול</button><button class="pill dark" data-act="chatOk">${t('{מאשרת|מאשר}')} (${ui.changes.length})</button></div>`;
+  }
+  return `${topBack()}
+  <h1 class="serif">💬 מדברים עם Claude</h1>
+  <p class="lead">${t('Claude יקבל את כל המשימות הפתוחות שלך. {תגידי|תגיד} לו מה לסדר, במילים שלך: "תעביר את כל השיווק של היום למחר", "תפרק לי את החתונה לצעדים", "עשיתי את הפולואפים".')}</p>
+  ${handoff([
+    { title: t('{תעתיקי|תעתיק} את ההודעה'), body: `<p>${t('בהודעה יש את כל המשימות, ואיך לענות לאפליקציה.')}</p>${sendButtons('chat')}` },
+    { title: t('{תפתחי|תפתח} את Claude ו{תדברי|תדבר} איתו'), body: `<p>${t('{מדביקים|מדביקים} בשיחה חדשה ו{מדברים|מדברים} חופשי. כש{מסיימים|מסיימים}, {כותבים|כותבים} לו "סיימנו", והוא ייתן קוד.')}</p>${openClaude}` },
+    { title: t('{תדביקי|תדביק} את הקוד כאן'), body: `<textarea rows="5" data-in="paste" placeholder="${t('{הדביקי|הדבק} כאן את הקוד ש-Claude נתן')}">${esc(ui.paste || '')}</textarea>
+      ${ui.err ? `<p class="warn">${esc(ui.err)}</p>` : ''}
+      <button class="pill dark" data-act="chatCheck">לבדוק את השינויים</button>` },
+  ])}`;
+}
+
 function viewPaste() {
   if (ui.pasted) {
     return `${topBack('חזרה', 'paste')}
@@ -992,7 +1112,7 @@ function viewBackup() {
 
 // ---------- פעולות ----------
 const CHEERS = ['יש! עוד צעד קדימה 🎉', 'כל הכבוד! 💛', 'וואו, זה זז! ✨', 'ככה בונים חלומות 🚀'];
-const promptFor = (kind) => (kind === 'plan' ? planPrompt() : kind === 'week' ? weeklyPrompt(V.w || targetWeek()) : JSON.stringify({ type: 'wemadeit-backup', data: S }));
+const promptFor = (kind) => (kind === 'plan' ? planPrompt() : kind === 'week' ? weeklyPrompt(V.w || targetWeek()) : kind === 'chat' ? chatPrompt() : JSON.stringify({ type: 'wemadeit-backup', data: S }));
 
 const ACT = {
   pickUser: (d) => { S.user = { ...USERS[d.u] }; save(); go('home'); },
@@ -1038,6 +1158,17 @@ const ACT = {
     render(); window.scrollTo(0, 0);
   },
   pasteCancel: () => { ui.pasted = null; render(); },
+  chatCheck: () => {
+    try {
+      const p = parseBlock(ui.paste);
+      const ops = p.type === 'wemadeit-changes' ? readChanges(p) : p.type === 'wemadeit-add' ? [{ kind: 'add', list: pasteTasks(p) }] : [];
+      if (!ops.length) throw new Error('x');
+      ui.changes = ops; ui.err = null;
+    } catch (e) { ui.err = t('לא הצלחתי לקרוא את זה. {תוודאי|תוודא} שהעתקת את כל הקוד, מהסוגר הראשון עד האחרון.'); }
+    render(); window.scrollTo(0, 0);
+  },
+  chatCancel: () => { ui.changes = null; render(); },
+  chatOk: () => { const n = ui.changes.length; applyChanges(ui.changes); go('home'); toast(`${n} שינויים נכנסו 🎉`); },
   pasteOk: () => { const n = new Set(ui.pasted.map((x) => x.series || x.group || x.id)).size; S.tasks.push(...ui.pasted); save(); go('bank'); toast(`נוספו ${n} משימות 🎉`); },
   update: async () => {
     toast('בודקת עדכון...');

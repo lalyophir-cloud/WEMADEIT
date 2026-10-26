@@ -259,3 +259,6 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .tm-btns { display: flex; gap: 6px; flex-shrink: 0; }
 .tm-btns button { min-height: 40px; min-width: 40px; border: 0; border-radius: 999px; background: var(--line); padding: 0 12px; font-size: 13px; }
 .tm-btns button.add { background: var(--ink); color: var(--bg); font-weight: 600; }
+.card.changes { gap: 6px; }
+.card.changes p { font-size: 15px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.card.changes p:last-child { border: 0; padding: 0; }
