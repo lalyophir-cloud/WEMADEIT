@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '27.10 · יום משותף + מקפיא 2027';
+const VERSION = '27.10 · שינוי יום משותף בלבד';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -1255,17 +1255,7 @@ const ACT = {
   planAdd: (d) => go('add', { back: V.name, w: d.w, date: d.date }),
   planDone: (d) => { S.weeks[d.w] = { ...(S.weeks[d.w] || {}), planned: true }; save(); go('week', { w: d.w }); toast('השבוע מתוכנן! שבוע מוצלח 💛'); },
   togPick: () => { ui.togPick = !ui.togPick; keepScroll(); },
-  together: (d) => {
-    const old = (S.weeks[d.w] || {}).together;
-    S.weeks[d.w] = { ...(S.weeks[d.w] || {}), together: d.d };
-    // משימות ⭐ שתוכננו ליום המשותף הקודם עוברות איתו ליום החדש
-    let moved = 0;
-    if (old && old !== 'none' && d.d !== 'none' && old !== d.d) {
-      S.tasks.filter((x) => x.together && x.date === old && x.status !== 'done').forEach((x) => { x.date = d.d; moved++; });
-    }
-    save(); V.w = d.w; ui.togPick = false;
-    if (moved) toast(`היום המשותף זז, ו-${moved} משימות ⭐ עברו איתו`); else keepScroll();
-  },
+  together: (d) => { S.weeks[d.w] = { ...(S.weeks[d.w] || {}), together: d.d }; save(); V.w = d.w; ui.togPick = false; keepScroll(); },
   freeze: () => {
     const x = task(V.id);
     const list = x.series ? seriesFrom(x) : [x];
