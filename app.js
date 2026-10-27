@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '27.10 · שינוי יום משותף בלבד';
+const VERSION = '27.10 · מוקפא לא נספר';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -650,10 +650,10 @@ function viewMe() {
     const list = S.tasks.filter((x) => x.area === a.id);
     const p = pct(list);
     const sc = S.answers[a.id] && S.answers[a.id].score;
-    const goals = S.goals.filter((g) => g.area === a.id);
+    const goals = S.goals.filter((g) => g.area === a.id && list.some((x) => x.goalId === g.id)); // מטרה מוקפאת לא נספרת
     return `<div class="arow"><span class="adot" style="background:${a.color}">${a.icon}</span><div class="agrow"><b>${a.name}</b>
       <div class="bar"><div style="width:${p}%;background:${a.color}"></div></div>
-      <span class="muted small">${list.length ? `${list.filter((x) => x.status === 'done').length} מתוך ${list.length} משימות` : 'עוד אין משימות'}${sc ? ` · ציון בהתחלה: ${sc}/10` : ''}</span>
+      <span class="muted small">${list.length ? `${list.filter((x) => x.status === 'done').length} מתוך ${list.length} משימות` : S.frozen.some((x) => x.area === a.id) ? '❄️ מוקפא ל-2027' : 'עוד אין משימות'}${sc ? ` · ציון בהתחלה: ${sc}/10` : ''}</span>
       ${goals.length ? `<ul class="goals">${goals.map((g) => `<li>${esc(g.title)} <span class="muted">(${pct(S.tasks.filter((x) => x.goalId === g.id))}%)</span></li>`).join('')}</ul>` : ''}
       </div><span class="apct">${p}%</span></div>`;
   }).join('')}
