@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '26.10 · מדברים עם Claude';
+const VERSION = '27.10 · תיקון לדבר עם Claude';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -972,9 +972,10 @@ function chatPrompt() {
   const open = S.tasks.filter((x) => x.status !== 'done');
   const single = open.filter((x) => !x.series).sort((a, b) => (a.date || a.week).localeCompare(b.date || b.week));
   const series = [...new Set(open.filter((x) => x.series).map((x) => x.series))].map((id) => {
-    const all = open.filter((x) => x.series === id).sort((a, b) => a.date.localeCompare(b.date));
-    const soon = all.filter((x) => x.date <= addDays(td, 7));
-    return `- סדרה [${id}] ${all[0].title} · ${area(all[0].area).name} · ${all[0].rep || 'חוזרת'} · עוד ${all.length} פעמים, הבאה ${all[0].date}${soon.length ? `\n  בשבוע הקרוב: ${soon.map((x) => `[${x.id}] ${x.date}`).join(', ')}` : ''}`;
+    // "כמה פעמים בשבוע" יוצרת חזרות בלי תאריך, אז ממיינים לפי תאריך או שבוע
+    const all = open.filter((x) => x.series === id).sort((a, b) => (a.date || a.week).localeCompare(b.date || b.week));
+    const soon = all.filter((x) => (x.date || x.week) <= addDays(td, 7));
+    return `- סדרה [${id}] ${all[0].title} · ${area(all[0].area).name} · ${all[0].rep || 'חוזרת'} · עוד ${all.length} פעמים, הבאה ${all[0].date || `בשבוע ${all[0].week}`}${soon.length ? `\n  בשבוע הקרוב: ${soon.map((x) => `[${x.id}] ${x.date || `שבוע ${x.week}`}`).join(', ')}` : ''}`;
   });
   return t(`היי Claude 💛 אני ${u.name}. {פנה אליי בלשון נקבה|פנה אליי בלשון זכר}, בעברית קצרה וחמה.
 אני {משתמשת|משתמש} באפליקציית משימות אישית בשם WEMADEIT. למטה כל המשימות הפתוחות שלי. אני רוצה לדבר איתך ולסדר אותן: להזיז, להוסיף, למחוק, לפרק לצעדים, לסמן מה עשיתי. אתה יכול גם להציע רעיונות, למשל אם יום מסוים עמוס מדי.
@@ -1023,7 +1024,7 @@ function readChanges(p) {
     if (a.do === 'add') { const list = pasteTasks({ tasks: [a] }); if (list.length) ops.push({ kind: 'add', list }); return; }
     const id = String(a.id || '').replace(/[\[\]\s]/g, '');
     // מזהה של סדרה (r..) מצביע על החזרה הפתוחה הקרובה שלה
-    const x = task(id) || S.tasks.filter((y) => y.series === id && y.status !== 'done').sort((m, n) => m.date.localeCompare(n.date))[0];
+    const x = task(id) || S.tasks.filter((y) => y.series === id && y.status !== 'done').sort((m, n) => (m.date || m.week).localeCompare(n.date || n.week))[0];
     if (!x) { ops.skipped = (ops.skipped || 0) + 1; return; }
     if (a.do === 'move' && (isDate(a.date) || a.date === null || isDate(a.week))) ops.push({ kind: 'move', x, date: isDate(a.date) ? a.date : null, week: isDate(a.week) ? weekOf(a.week) : null });
     else if (a.do === 'done' || a.do === 'undone') ops.push({ kind: a.do, x });
@@ -1136,8 +1137,15 @@ const ACT = {
   score: (d) => { const a = (S.answers[d.a] = S.answers[d.a] || {}); a.score = Number(d.n); save(); keepScroll(); },
   quest: (d) => go('quest', { i: Number(d.i) }),
   questDone: () => { S.qDone = true; save(); go('home'); toast(t('כל הכבוד! עכשיו בונים תוכנית 💪')); },
-  copy: async (d) => { const ok = await copyText(promptFor(d.kind)); toast(ok ? t('הועתק! עכשיו {תדביקי|תדביק} ב-Claude') : 'לא הצלחתי להעתיק, נסו "שליחה"'); },
-  share: async (d) => { try { await navigator.share({ text: promptFor(d.kind) }); } catch (e) { /* המשתמש ביטל */ } },
+  copy: async (d) => {
+    let text;
+    try { text = promptFor(d.kind); } catch (e) { toast(t('משהו השתבש בהכנת ההודעה. {ספרי|ספר} לי ואתקן')); return; }
+    const ok = await copyText(text); toast(ok ? t('הועתק! עכשיו {תדביקי|תדביק} ב-Claude') : 'לא הצלחתי להעתיק, נסו "שליחה"'); },
+  share: async (d) => {
+    let text;
+    try { text = promptFor(d.kind); } catch (e) { toast(t('משהו השתבש בהכנת ההודעה. {ספרי|ספר} לי ואתקן')); return; }
+    try { await navigator.share({ text }); } catch (e) { /* המשתמש ביטל */ }
+  },
   planCheck: () => {
     try {
       const p = parseBlock(ui.paste);
