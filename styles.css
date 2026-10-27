@@ -262,3 +262,18 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .card.changes { gap: 6px; }
 .card.changes p { font-size: 15px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .card.changes p:last-child { border: 0; padding: 0; }
+
+/* יום משותף בלו"ז */
+.tog-card { gap: 10px; }
+.tog-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tog-card .daypick button { background: var(--card); }
+.tog-card .daypick button.on { background: var(--ink); color: var(--bg); }
+
+/* מקפיא 2027 */
+.goal-actions { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+.card.frozen { background: #E4EEF7; }
+.card.frozen summary { list-style: none; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.card.frozen summary::-webkit-details-marker { display: none; }
+.fz-area { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,.08); margin-top: 10px; }
+.fz-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.fz-goal ul { margin: 4px 0 0; padding-inline-start: 20px; font-size: 14px; color: #3d3a34; }

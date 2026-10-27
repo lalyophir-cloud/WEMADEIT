@@ -2,10 +2,11 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '27.10 · תיקון לדבר עם Claude';
-const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false } });
+const VERSION = '27.10 · יום משותף + מקפיא 2027';
+const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
+if (!S.frozen) S.frozen = []; // משימות שהוקפאו ל-2027. שמורות בצד, כדי שלא יופיעו בשום מקום אחר
 function load() {
   try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY)) }; } catch (e) { return fresh(); }
 }
@@ -409,7 +410,12 @@ function viewWeek() {
   </div>
   ${inWeek.some((x) => x.status !== 'done' && x.date >= today()) ? `<button class="pill light wide" data-act="remindMany" data-scope="week" data-w="${w}">🔔 כל השבוע לתזכורות באייפון</button>` : ''}
   ${canPlan ? `<section class="card next"><span class="label">הצעד הבא</span><h2>לתכנן את השבוע</h2><p>${t('לבחור יום משותף ולשבץ את המשימות לפי היומן.')}</p><button class="pill dark" data-act="go" data-v="weekly" data-w="${w}">${t('{בואי|בוא} נתכנן')}</button></section>` : ''}
-  ${wk.together && wk.together !== 'none' ? `<div class="card together">💛 יום עבודה משותף: ${fmtDay(wk.together)}${wk.time ? `, ${esc(wk.time)}` : ''}</div>` : ''}
+  <div class="card together tog-card">
+    <div class="tog-head"><span>💛 ${wk.together && wk.together !== 'none' ? `יום עבודה משותף: ${fmtDay(wk.together)}${wk.time ? `, ${esc(wk.time)}` : ''}` : wk.together === 'none' ? 'השבוע אין יום משותף' : 'עוד לא נבחר יום משותף'}</span>
+    <button class="link-row tight" data-act="togPick">${ui.togPick ? 'סגירה' : wk.together ? 'לשנות' : 'לבחור'}</button></div>
+    ${ui.togPick ? `<div class="daypick">${days.map((d) => `<button class="${wk.together === d ? 'on' : ''}" data-act="together" data-w="${w}" data-d="${d}"><b>${DAYS[pd(d).getDay()]}</b><span>${short(d)}</span></button>`).join('')}
+      <button class="none${wk.together === 'none' ? ' on' : ''}" data-act="together" data-w="${w}" data-d="none">אין השבוע</button></div>` : ''}
+  </div>
   ${days.map((d) => {
     const list = inWeek.filter((x) => x.date === d).sort(byDay);
     return `<div class="day${d === today() ? ' is-today' : ''}"><div class="day-h"><b>${DAYS[pd(d).getDay()]}</b> <span>${short(d)}</span>${wk.together === d ? ' <span class="chip">💛 יחד</span>' : ''}</div>
@@ -585,11 +591,12 @@ function viewBank() {
         <div class="bar"><div style="width:${pct(list)}%;background:${a.color}"></div></div></div></summary>
         ${why ? `<p class="why">למה: ${esc(why)}</p>` : ''}
         <div class="list">${list.sort(sortT).map((x) => taskRow(x, { showWeek: true })).join('')}</div>
-        ${id ? `<button class="link-row" data-act="addTo" data-g="${id}">+ משימה למטרה הזו</button>` : ''}
+        ${id ? `<div class="goal-actions"><button class="link-row" data-act="addTo" data-g="${id}">+ משימה למטרה הזו</button><button class="link-row" data-act="freezeGoal" data-g="${id}">❄️ להקפיא ל-2027</button></div>` : ''}
       </details>`;
       return `<section class="abank"><div class="ahead"><span class="adot" style="background:${a.color}">${a.icon}</span><h2>${a.name}</h2><span class="apct">${pct(at)}%</span></div>
-        ${goals.map((g) => block(g.title, g.why, at.filter((x) => x.goalId === g.id), g.id)).join('')}
-        ${loose.length ? block('משימות נוספות', '', loose) : ''}</section>`;
+        ${goals.filter((g) => at.some((x) => x.goalId === g.id)).map((g) => block(g.title, g.why, at.filter((x) => x.goalId === g.id), g.id)).join('')}
+        ${loose.length ? block('משימות נוספות', '', loose) : ''}
+        <button class="link-row tight" data-act="freezeGoal" data-a="${a.id}">❄️ להקפיא את כל ${a.name} ל-2027</button></section>`;
     }).join('');
   } else {
     const weeks = [...new Set(tasks.map((x) => weekOf(x.date || x.week)))].sort();
@@ -604,7 +611,34 @@ function viewBank() {
   <p class="muted">כל מה שצריך לעשות עד סוף השנה, במקום אחד.</p>
   <div class="seg"><button class="${by === 'area' ? 'on' : ''}" data-act="bank" data-by="area" data-a="${f}">לפי תחום ומטרה</button><button class="${by === 'week' ? 'on' : ''}" data-act="bank" data-by="week" data-a="${f}">לפי שבועות</button></div>
   ${S.tasks.length ? chips : ''}
-  ${body}`;
+  ${body}
+  ${frozenSection()}`;
+}
+
+function freezeTasks(list) {
+  const ids = new Set(list.map((x) => x.id));
+  S.tasks = S.tasks.filter((x) => !ids.has(x.id));
+  list.forEach((x) => { x.frozen = true; S.frozen.push(x); });
+  save();
+}
+
+// המקפיא: מה שנדחה ל-2027, מסודר לפי תחום ומטרה, עם אפשרות להפשיר
+function frozenSection() {
+  if (!S.frozen.length) return '';
+  const byArea = AREAS.filter((a) => S.frozen.some((x) => x.area === a.id)).map((a) => {
+    const list = S.frozen.filter((x) => x.area === a.id);
+    const keys = [...new Set(list.map((x) => x.goalId || ''))];
+    return `<div class="fz-area"><div class="fz-head"><b>${a.icon} ${a.name}</b><button class="link-row tight" data-act="unfreeze" data-a="${a.id}">☀️ להפשיר הכל</button></div>
+      ${keys.map((k) => {
+        const g = goal(k), items = list.filter((x) => (x.goalId || '') === k);
+        // משימה שחוזרת ("אימון (1/3)", או סדרה) מופיעה פעם אחת, עם מספר הפעמים
+        const counts = {};
+        items.forEach((x) => { const n = (x.series ? x.base || x.title : x.title).replace(/\s*\(\d+\/\d+\)$/, ''); counts[n] = (counts[n] || 0) + 1; });
+        return `<div class="fz-goal">${g ? `<div class="fz-head"><span>🎯 ${esc(g.title)}</span><button class="link-row tight" data-act="unfreeze" data-g="${g.id}">להפשיר</button></div>` : ''}
+          <ul>${Object.entries(counts).map(([n, c]) => `<li>${esc(n)}${c > 1 ? ` <span class="muted">×${c}</span>` : ''}</li>`).join('')}</ul></div>`;
+      }).join('')}</div>`;
+  }).join('');
+  return `<details class="card frozen" ${openAttr('frozen', false)}><summary><b>❄️ מוקפא ל-2027</b><span class="muted small">${S.frozen.length} משימות שמורות. לא נזרק כלום.</span></summary>${byArea}</details>`;
 }
 
 function viewMe() {
@@ -798,6 +832,7 @@ function viewTask() {
     <div class="subs">${x.subs.map((s) => `<div class="sub"><button class="check sm s-${s.done ? 'done' : 'todo'}" data-act="subToggle" data-sid="${s.id}" aria-label="סימון">${s.done ? icon('check', 13) : ''}</button><span class="${s.done ? 'strike' : ''}">${esc(s.title)}</span><button class="x" data-act="subDel" data-sid="${s.id}" aria-label="מחיקה">×</button></div>`).join('')}</div>
     <div class="add-sub"><input id="subin" type="text" placeholder="צעד קטן חדש" ${V.split ? 'data-autofocus' : ''}><button class="pill pink" data-act="subAdd">+ הוספה</button></div>
   </div>
+  <button class="pill light wide" data-act="freeze">❄️ להקפיא ל-2027</button>
   `;
 }
 
@@ -1219,7 +1254,36 @@ const ACT = {
   planNext: (d) => { const x = task(d.id); x.week = addDays(d.w, 7); x.date = null; x.time = null; save(); V.w = d.w; toast('עבר לשבוע הבא'); },
   planAdd: (d) => go('add', { back: V.name, w: d.w, date: d.date }),
   planDone: (d) => { S.weeks[d.w] = { ...(S.weeks[d.w] || {}), planned: true }; save(); go('week', { w: d.w }); toast('השבוע מתוכנן! שבוע מוצלח 💛'); },
-  together: (d) => { S.weeks[d.w] = { ...(S.weeks[d.w] || {}), together: d.d }; save(); V.w = d.w; keepScroll(); },
+  togPick: () => { ui.togPick = !ui.togPick; keepScroll(); },
+  together: (d) => {
+    const old = (S.weeks[d.w] || {}).together;
+    S.weeks[d.w] = { ...(S.weeks[d.w] || {}), together: d.d };
+    // משימות ⭐ שתוכננו ליום המשותף הקודם עוברות איתו ליום החדש
+    let moved = 0;
+    if (old && old !== 'none' && d.d !== 'none' && old !== d.d) {
+      S.tasks.filter((x) => x.together && x.date === old && x.status !== 'done').forEach((x) => { x.date = d.d; moved++; });
+    }
+    save(); V.w = d.w; ui.togPick = false;
+    if (moved) toast(`היום המשותף זז, ו-${moved} משימות ⭐ עברו איתו`); else keepScroll();
+  },
+  freeze: () => {
+    const x = task(V.id);
+    const list = x.series ? seriesFrom(x) : [x];
+    if (!confirm(list.length > 1 ? `להקפיא ל-2027 את המשימה וכל ${list.length - 1} החזרות הבאות שלה?` : 'להקפיא את המשימה ל-2027?')) return;
+    freezeTasks(list); go(V.from || 'home', V.fromW ? { w: V.fromW } : {}); toast('❄️ הוקפא ל-2027');
+  },
+  freezeGoal: (d) => {
+    const list = S.tasks.filter((x) => (d.g ? x.goalId === d.g : x.area === d.a) && x.status !== 'done');
+    if (!list.length) return;
+    if (!confirm(`להקפיא ל-2027 ${list.length} משימות${d.g ? ' של המטרה' : ' של כל התחום'}? הן יישמרו, ואפשר להפשיר בכל רגע.`)) return;
+    freezeTasks(list); keepScroll(); toast(`❄️ ${list.length} משימות הוקפאו ל-2027`);
+  },
+  unfreeze: (d) => {
+    const list = S.frozen.filter((x) => (d.id ? x.id === d.id : d.g ? x.goalId === d.g : x.area === d.a));
+    S.frozen = S.frozen.filter((x) => !list.includes(x));
+    list.forEach((x) => { x.date = null; x.time = null; if (x.week < weekOf(today())) x.week = weekOf(today()); delete x.frozen; S.tasks.push(x); });
+    save(); keepScroll(); toast(`☀️ ${list.length} משימות חזרו (בלי יום, אפשר לשבץ בתכנון השבועי)`);
+  },
   weekOk: (d) => {
     try {
       const p = parseBlock(ui.paste);
