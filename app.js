@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '27.10 · מוקפא לא נספר';
+const VERSION = '29.10 · השבוע מתחיל מהיום';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -398,6 +398,14 @@ function viewWeek() {
   const wk = S.weeks[w] || {};
   const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(w, i));
   const uns = S.tasks.filter((x) => !x.date && x.week === w);
+  // בשבוע הנוכחי מתחילים מהיום. הימים שעברו מקופלים בסוף
+  const past = w === weekOf(today()) ? days.filter((d) => d < today()) : [];
+  const pastOpen = S.tasks.filter((x) => past.includes(x.date) && x.status !== 'done').length;
+  const dayBlock = (d) => {
+    const list = S.tasks.filter((x) => x.date === d).sort(byDay);
+    return `<div class="day${d === today() ? ' is-today' : ''}"><div class="day-h"><b>${DAYS[pd(d).getDay()]}</b> <span>${short(d)}</span>${wk.together === d ? ' <span class="chip">💛 יחד</span>' : ''}</div>
+    ${list.length ? `<div class="list">${list.map((x) => taskRow(x)).join('')}</div>` : '<p class="muted small pad">-</p>'}</div>`;
+  };
   const inWeek = S.tasks.filter((x) => x.date && x.date >= w && x.date <= addDays(w, 6));
   const canPlan = w >= weekOf(today()) && !wk.planned;
   return `
@@ -416,12 +424,9 @@ function viewWeek() {
     ${ui.togPick ? `<div class="daypick">${days.map((d) => `<button class="${wk.together === d ? 'on' : ''}" data-act="together" data-w="${w}" data-d="${d}"><b>${DAYS[pd(d).getDay()]}</b><span>${short(d)}</span></button>`).join('')}
       <button class="none${wk.together === 'none' ? ' on' : ''}" data-act="together" data-w="${w}" data-d="none">אין השבוע</button></div>` : ''}
   </div>
-  ${days.map((d) => {
-    const list = inWeek.filter((x) => x.date === d).sort(byDay);
-    return `<div class="day${d === today() ? ' is-today' : ''}"><div class="day-h"><b>${DAYS[pd(d).getDay()]}</b> <span>${short(d)}</span>${wk.together === d ? ' <span class="chip">💛 יחד</span>' : ''}</div>
-    ${list.length ? `<div class="list">${list.map((x) => taskRow(x)).join('')}</div>` : '<p class="muted small pad">-</p>'}</div>`;
-  }).join('')}
-  ${uns.length ? `<div class="day"><div class="day-h"><b>עוד לא שובץ</b></div><div class="list">${uns.map((x) => taskRow(x)).join('')}</div></div>` : ''}`;
+  ${days.filter((d) => !past.includes(d)).map(dayBlock).join('')}
+  ${uns.length ? `<div class="day"><div class="day-h"><b>עוד לא שובץ</b></div><div class="list">${uns.map((x) => taskRow(x)).join('')}</div></div>` : ''}
+  ${past.length ? `<details class="card past" ${openAttr(`past-${w}`, false)}><summary><b>ימים שעברו השבוע</b><span class="muted small">${pastOpen ? `${pastOpen} משימות לא בוצעו` : 'הכל בוצע ✓'}</span></summary>${past.map(dayBlock).join('')}</details>` : ''}`;
 }
 
 function viewMonth() {
