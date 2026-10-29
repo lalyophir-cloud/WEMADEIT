@@ -277,7 +277,5 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .fz-area { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,.08); margin-top: 10px; }
 .fz-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .fz-goal ul { margin: 4px 0 0; padding-inline-start: 20px; font-size: 14px; color: #3d3a34; }
-.card.past summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.card.past summary::-webkit-details-marker { display: none; }
-.card.past[open] summary { margin-bottom: 8px; }
-.card.past .trow { background: var(--bg); }
+.late-sec { display: flex; flex-direction: column; gap: 8px; background: #FCE3EE; border-radius: 24px; padding: 14px; }
+.late-sec .day-h b { color: var(--late); }
