@@ -279,3 +279,12 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .fz-goal ul { margin: 4px 0 0; padding-inline-start: 20px; font-size: 14px; color: #3d3a34; }
 .late-sec { display: flex; flex-direction: column; gap: 8px; background: #FCE3EE; border-radius: 24px; padding: 14px; }
 .late-sec .day-h b { color: var(--late); }
+
+/* חיפוש */
+.search { width: 100%; border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 12px 18px; font-size: 16px; }
+.search:focus { outline: none; border-color: var(--ink); }
+#bank-results { display: flex; flex-direction: column; gap: 8px; }
+#bank-results:empty { display: none; }
+.search-empty { align-items: flex-start; }
+.dup { display: flex; flex-direction: column; gap: 4px; background: #FFF6D6; border-radius: 14px; padding: 10px 12px; font-size: 14px; }
+.dup em { font-style: normal; color: var(--muted); }

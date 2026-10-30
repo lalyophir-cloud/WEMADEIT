@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '29.10 · לא הושלמו בזמן';
+const VERSION = '30.10 · חיפוש משימות';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -582,6 +582,45 @@ function viewBoost() {
   ${chips}`;
 }
 
+// חיפוש בכל המשימות: פתוחות, שבוצעו ומוקפאות. מחפשים בשם, בצעדים הקטנים, במטרה ובתחום
+const norm = (str) => String(str || '').toLowerCase().replace(/["'״׳`\-–—]/g, '').replace(/\s+/g, ' ').trim();
+function findTasks(q) {
+  const words = norm(q).split(' ').filter(Boolean);
+  if (!words.length) return [];
+  const hay = (x) => norm([x.title, x.base, area(x.area).name, (goal(x.goalId) || {}).title, ...(x.subs || []).map((y) => y.title)].join(' '));
+  const hits = [...S.tasks, ...S.frozen].filter((x) => { const h = hay(x); return words.every((w) => h.includes(w)); });
+  // משימה חוזרת או של כמה ימים: שורה אחת, עם המופע הפתוח הבא (או שנדחה, אם אין הבא)
+  const groups = {};
+  hits.forEach((x) => { const k = x.series || x.group || x.id; (groups[k] = groups[k] || []).push(x); });
+  return Object.values(groups).map((g) => {
+    const open = g.filter((x) => x.status !== 'done').sort((a, b) => (a.date || a.week).localeCompare(b.date || b.week));
+    const next = open.find((x) => (x.date || addDays(x.week, 6)) >= today());
+    return { x: next || open[0] || g[g.length - 1], n: g.length };
+  });
+}
+function resultRow({ x, n }) {
+  if (x.frozen) {
+    return `<div class="trow"><span class="dot" style="background:${area(x.area).color}"></span><div class="tbody"><span class="ttl">❄️ ${esc(x.title)}</span>
+      <span class="meta">מוקפא ל-2027 · ${esc(area(x.area).name)}</span></div></div>`;
+  }
+  return taskRow(x, { showWeek: true, extra: n > 1 ? `${n} פעמים` : '' });
+}
+function searchHtml(q) {
+  if (norm(q).length < 2) return '';
+  const res = findTasks(q);
+  const add = `<button class="pill light" data-act="go" data-v="add" data-title="${esc(q.trim())}">+ להוסיף "${esc(q.trim())}" כמשימה חדשה</button>`;
+  if (!res.length) return `<div class="card search-empty"><b>לא נמצאה משימה כזו</b><p class="muted small">${t('כנראה עוד לא {הכנסת|הכנסת} אותה.')}</p>${add}</div>`;
+  return `<p class="muted small">נמצאו ${res.length}</p><div class="list">${res.map(resultRow).join('')}</div>`;
+}
+// כשמקלידים שם של משימה חדשה: יש כבר משהו דומה?
+function dupHtml(title) {
+  if (norm(title).length < 3) return '';
+  const res = findTasks(title).slice(0, 3);
+  if (!res.length) return '';
+  const when = (x) => (x.frozen ? 'מוקפא ל-2027' : x.status === 'done' ? 'בוצע' : x.date ? fmtDay(x.date) : `שבוע ${weekRange(x.week)}`);
+  return `<div class="dup"><b>🔎 כבר יש משימות דומות:</b>${res.map(({ x }) => `<span>${esc(x.title)} <em>· ${esc(when(x))}</em></span>`).join('')}</div>`;
+}
+
 function viewBank() {
   const { by, a: f } = bankView;
   const shown = AREAS.filter((a) => f === 'all' || a.id === f);
@@ -624,10 +663,14 @@ function viewBank() {
   return `
   <div class="sec-head"><h1 class="serif">בנק משימות</h1><span class="muted small">${S.tasks.length ? `${S.tasks.filter((x) => x.status === 'done').length}/${S.tasks.length} בוצעו` : ''}</span></div>
   <p class="muted">כל מה שצריך לעשות עד סוף השנה, במקום אחד.</p>
+  <input id="bankq" class="search" type="search" placeholder="🔍 חיפוש משימה" value="${esc(bankView.q || '')}" data-in="bankq" aria-label="חיפוש משימה">
+  <div id="bank-results">${searchHtml(bankView.q)}</div>
+  <div id="bank-rest" class="stack"${(bankView.q || '').trim().length > 1 ? ' hidden' : ''}>
   <div class="seg"><button class="${by === 'area' ? 'on' : ''}" data-act="bank" data-by="area" data-a="${f}">לפי תחום ומטרה</button><button class="${by === 'week' ? 'on' : ''}" data-act="bank" data-by="week" data-a="${f}">לפי שבועות</button></div>
   ${S.tasks.length ? chips : ''}
   ${body}
-  ${frozenSection()}`;
+  ${frozenSection()}
+  </div>`;
 }
 
 function freezeTasks(list) {
@@ -874,12 +917,12 @@ function togetherFor(x) {
 const REPS = [['once', 'פעם אחת'], ['daily', 'כל יום'], ['days', 'בימים קבועים'], ['weekly', 'כמה פעמים בשבוע'], ['monthly', 'פעם בחודש']];
 
 function viewAdd() {
-  const f = ui.add || (ui.add = { title: '', area: AREAS[0].id, goal: V.g || '', together: false, rep: 'once', date: V.date || '', time: '', days: [], n: 3, start: V.w && V.w > today() ? V.w : today(), end: END, week: V.w || null });
+  const f = ui.add || (ui.add = { title: V.title || '', area: AREAS[0].id, goal: V.g || '', together: false, rep: 'once', date: V.date || '', time: '', days: [], n: 3, start: V.w && V.w > today() ? V.w : today(), end: END, week: V.w || null });
   const count = repeatDates(f).length;
   return `${topBack('חזרה', V.back || 'home')}
   <h1 class="serif">משימה חדשה</h1>
   <button class="pill light wide" data-act="go" data-v="paste">📋 ${t('יש לי משימות מ-Claude? {הדביקי|הדבק} כאן')}</button>
-  <div class="field"><label for="ntitle">מה עושים?</label><input id="ntitle" type="text" value="${esc(f.title)}" data-in="add" data-f="title" ${f.title ? '' : 'data-autofocus'}></div>
+  <div class="field"><label for="ntitle">מה עושים?</label><input id="ntitle" type="text" value="${esc(f.title)}" data-in="add" data-f="title" ${f.title ? '' : 'data-autofocus'}><div id="dup">${dupHtml(f.title)}</div></div>
   <div class="field"><label for="narea">תחום</label><select id="narea" data-in="add" data-f="area">${AREAS.map((a) => `<option value="${a.id}"${f.area === a.id ? ' selected' : ''}>${a.icon} ${a.name}</option>`).join('')}</select></div>
   ${S.goals.length ? `<div class="field"><label for="ngoal">מטרה (לא חובה)</label><select id="ngoal" data-in="add" data-f="goal"><option value="">בלי</option>${S.goals.map((g) => `<option value="${g.id}"${f.goal === g.id ? ' selected' : ''}>${esc(area(g.area).name)}: ${esc(g.title)}</option>`).join('')}</select></div>` : ''}
   <section class="card move">
@@ -1167,7 +1210,7 @@ const promptFor = (kind) => (kind === 'plan' ? planPrompt() : kind === 'week' ? 
 
 const ACT = {
   pickUser: (d) => { S.user = { ...USERS[d.u] }; save(); go('home'); },
-  go: (d) => go(d.v, d.w ? { w: d.w } : d.more ? { more: true } : {}),
+  go: (d) => go(d.v, d.w ? { w: d.w } : d.more ? { more: true } : d.title ? { title: d.title } : {}),
   week: (d) => go('week', { w: d.w }),
   month: (d) => go('month', { m: d.m }),
   day: (d) => { V.d = d.d; render(); },
@@ -1407,7 +1450,17 @@ function keepScroll() { const y = window.scrollY; render(); window.scrollTo(0, y
 const IN = {
   ans: (el) => { const a = (S.answers[el.dataset.a] = S.answers[el.dataset.a] || {}); a.a = a.a || []; a.a[Number(el.dataset.k)] = el.value; save(); },
   paste: (el) => { ui.paste = el.value; },
-  add: (el) => { ui.add[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value; if (el.type === 'date') keepScroll(); },
+  add: (el) => {
+    ui.add[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value;
+    if (el.type === 'date') keepScroll();
+    if (el.dataset.f === 'title') document.getElementById('dup').innerHTML = dupHtml(el.value);
+  },
+  // מעדכנים רק את התוצאות, כדי שהמקלדת לא תיסגר באמצע הקלדה
+  bankq: (el) => {
+    bankView.q = el.value;
+    document.getElementById('bank-results').innerHTML = searchHtml(el.value);
+    document.getElementById('bank-rest').hidden = el.value.trim().length > 1;
+  },
 };
 const CH = {
   ttime: (el) => { const w = el.dataset.w; S.weeks[w] = { ...(S.weeks[w] || {}), time: el.value.trim() }; save(); },
