@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '30.10 · חיפוש משימות';
+const VERSION = '31.10 · מטרות ל-2027';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -262,7 +262,7 @@ function toast(msg) {
 
 function render() {
   if (!S.user) { app.innerHTML = viewWelcome(); return; }
-  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, tomorrow: viewTomorrow, chat: viewChat, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, remindSetup: viewRemind, paste: viewPaste };
+  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, tomorrow: viewTomorrow, chat: viewChat, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, remindSetup: viewRemind, paste: viewPaste, goal27: viewGoal27 };
   const tabs = ['home', 'week', 'month', 'bank', 'me'];
   const v = views[V.name] ? V.name : 'home';
   app.innerHTML = `<main class="screen${tabs.includes(v) ? ' has-nav' : ''}">${views[v]()}</main>${tabs.includes(v) ? nav(v) : ''}${ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : ''}`;
@@ -681,23 +681,44 @@ function freezeTasks(list) {
 }
 
 // המקפיא: מה שנדחה ל-2027, מסודר לפי תחום ומטרה, עם אפשרות להפשיר
+// 2027: מטרות לשנה הבאה, ומשימות שהוקפאו. הכל שמור בצד, לא נספר ולא מופיע בלו"ז
+const is2027 = (g) => g && g.year === 2027;
 function frozenSection() {
-  if (!S.frozen.length) return '';
-  const byArea = AREAS.filter((a) => S.frozen.some((x) => x.area === a.id)).map((a) => {
+  const goals27 = S.goals.filter(is2027);
+  const areasIn = AREAS.filter((a) => S.frozen.some((x) => x.area === a.id) || goals27.some((g) => g.area === a.id));
+  const byArea = areasIn.map((a) => {
     const list = S.frozen.filter((x) => x.area === a.id);
-    const keys = [...new Set(list.map((x) => x.goalId || ''))];
-    return `<div class="fz-area"><div class="fz-head"><b>${a.icon} ${a.name}</b><button class="link-row tight" data-act="unfreeze" data-a="${a.id}">☀️ להפשיר הכל</button></div>
+    const keys = [...new Set([...goals27.filter((g) => g.area === a.id).map((g) => g.id), ...list.map((x) => x.goalId || '')])];
+    return `<div class="fz-area"><div class="fz-head"><b>${a.icon} ${a.name}</b>${list.length ? `<button class="link-row tight" data-act="unfreeze" data-a="${a.id}">☀️ להפשיר הכל</button>` : ''}</div>
       ${keys.map((k) => {
         const g = goal(k), items = list.filter((x) => (x.goalId || '') === k);
         // משימה שחוזרת ("אימון (1/3)", או סדרה) מופיעה פעם אחת, עם מספר הפעמים
         const counts = {};
         items.forEach((x) => { const n = (x.series ? x.base || x.title : x.title).replace(/\s*\(\d+\/\d+\)$/, ''); counts[n] = (counts[n] || 0) + 1; });
-        return `<div class="fz-goal">${g ? `<div class="fz-head"><span>🎯 ${esc(g.title)}</span><button class="link-row tight" data-act="unfreeze" data-g="${g.id}">להפשיר</button></div>` : ''}
-          <ul>${Object.entries(counts).map(([n, c]) => `<li>${esc(n)}${c > 1 ? ` <span class="muted">×${c}</span>` : ''}</li>`).join('')}</ul></div>`;
+        return `<div class="fz-goal">${g ? `<div class="fz-head"><span>🎯 ${esc(g.title)}</span>
+            ${items.length ? `<button class="link-row tight" data-act="unfreeze" data-g="${g.id}">${is2027(g) ? '☀️ להתחיל כבר עכשיו' : 'להפשיר'}</button>` : ''}</div>${g.why ? `<p class="muted small">${esc(g.why)}</p>` : ''}` : ''}
+          ${items.length ? `<ul>${Object.entries(counts).map(([n, c]) => `<li>${esc(n)}${c > 1 ? ` <span class="muted">×${c}</span>` : ''}</li>`).join('')}</ul>` : ''}
+          ${g ? `<div class="goal-actions"><button class="link-row tight" data-act="go" data-v="goal27" data-g="${g.id}">+ משימות</button>${is2027(g) ? `<button class="link-row tight" data-act="delGoal27" data-g="${g.id}">🗑️ למחוק</button>` : ''}</div>` : ''}</div>`;
       }).join('')}</div>`;
   }).join('');
-  return `<details class="card frozen" ${openAttr('frozen', false)}><summary><b>❄️ מוקפא ל-2027</b><span class="muted small">${S.frozen.length} משימות שמורות. לא נזרק כלום.</span></summary>${byArea}</details>`;
+  const parts = [goals27.length ? `${goals27.length} מטרות` : '', S.frozen.length ? `${S.frozen.length} משימות מוקפאות` : ''].filter(Boolean).join(' · ');
+  return `<details class="card frozen" ${openAttr('frozen', false)}><summary><b>🗓️ 2027</b><span class="muted small">${parts || 'מטרות לשנה הבאה, ומה שהקפאת. לא נספר באחוזים.'}</span></summary>
+    ${byArea}<button class="pill light" data-act="go" data-v="goal27">+ מטרה חדשה ל-2027</button></details>`;
 }
+
+// הוספת מטרה ל-2027 (או משימות למטרה קיימת), עם משימות בשורות
+function viewGoal27() {
+  const g = goal(V.g);
+  return `${topBack('חזרה', 'bank')}
+  <h1 class="serif">${g ? `🎯 ${esc(g.title)}` : '🗓️ מטרה ל-2027'}</h1>
+  <p class="lead">${t('נשמר בצד לשנה הבאה: לא מופיע בלו"ז ולא נספר באחוזים. {כשתרצי|כשתרצה}, {מפשירים|מפשירים} והמשימות חוזרות.')}</p>
+  ${g ? '' : `<div class="field"><label for="g27title">מה המטרה?</label><input id="g27title" type="text" data-autofocus></div>
+  <div class="field"><label for="g27area">תחום</label><select id="g27area">${AREAS.map((a) => `<option value="${a.id}">${a.icon} ${a.name}</option>`).join('')}</select></div>
+  <div class="field"><label for="g27why">למה זה חשוב לי? (לא חובה)</label><input id="g27why" type="text"></div>`}
+  <div class="field"><label for="g27tasks">משימות (לא חובה, שורה לכל משימה)</label><textarea id="g27tasks" rows="5" placeholder="לבנות אתר&#10;לצלם תמונות&#10;להשיק"></textarea></div>
+  <button class="pill dark wide" data-act="saveGoal27"${g ? ` data-g="${g.id}"` : ''}>שמירה</button>`;
+}
+
 
 function viewMe() {
   const u = me();
@@ -1075,7 +1096,7 @@ function chatPrompt() {
 
 היום: ${fmtDay(td)} (${td}).
 התחומים: ${AREAS.map((a) => a.name).join(', ')}
-${S.goals.length ? `המטרות שלי: ${S.goals.map((g) => `${g.title} (${area(g.area).name})`).join(' · ')}\n` : ''}
+${S.goals.some((g) => !is2027(g)) ? `המטרות שלי: ${S.goals.filter((g) => !is2027(g)).map((g) => `${g.title} (${area(g.area).name})`).join(' · ')}\n` : ''}
 איך עובדים:
 1. נדבר חופשי. אל תוציא קוד באמצע השיחה.
 2. כשאכתוב "סיימנו" (או "תן קוד"), תסכם במשפט מה משתנה, ותוציא בלוק קוד אחד עם JSON תקין, בפורמט הזה בדיוק:
@@ -1210,7 +1231,7 @@ const promptFor = (kind) => (kind === 'plan' ? planPrompt() : kind === 'week' ? 
 
 const ACT = {
   pickUser: (d) => { S.user = { ...USERS[d.u] }; save(); go('home'); },
-  go: (d) => go(d.v, d.w ? { w: d.w } : d.more ? { more: true } : d.title ? { title: d.title } : {}),
+  go: (d) => go(d.v, d.w ? { w: d.w } : d.more ? { more: true } : d.title ? { title: d.title } : d.g ? { g: d.g } : {}),
   week: (d) => go('week', { w: d.w }),
   month: (d) => go('month', { m: d.m }),
   day: (d) => { V.d = d.d; render(); },
@@ -1326,8 +1347,27 @@ const ACT = {
     if (!confirm(`להקפיא ל-2027 ${list.length} משימות${d.g ? ' של המטרה' : ' של כל התחום'}? הן יישמרו, ואפשר להפשיר בכל רגע.`)) return;
     freezeTasks(list); keepScroll(); toast(`❄️ ${list.length} משימות הוקפאו ל-2027`);
   },
+  saveGoal27: (d) => {
+    let g = goal(d.g);
+    if (!g) {
+      const title = document.getElementById('g27title').value.trim();
+      if (!title) { toast('צריך לכתוב מה המטרה 🙂'); return; }
+      g = { id: uid('g'), area: document.getElementById('g27area').value, title, why: document.getElementById('g27why').value.trim(), year: 2027, manual: true };
+      S.goals.push(g);
+    }
+    const lines = document.getElementById('g27tasks').value.split('\n').map((l) => l.trim()).filter(Boolean);
+    lines.forEach((title) => S.frozen.push({ id: uid('t'), goalId: g.id, area: g.area, title, week: '2027-01-03', date: null, time: null, together: false, status: 'todo', subs: [], manual: true, frozen: true }));
+    save(); openState.frozen = true; go('bank'); toast(lines.length ? `נשמר ל-2027, עם ${lines.length} משימות 🗓️` : 'המטרה נשמרה ל-2027 🗓️');
+  },
+  delGoal27: (d) => {
+    const g = goal(d.g), n = S.frozen.filter((x) => x.goalId === d.g).length;
+    if (!confirm(`למחוק את המטרה "${g.title}"${n ? ` ואת ${n} המשימות שלה` : ''}?`)) return;
+    S.goals = S.goals.filter((y) => y.id !== d.g); S.frozen = S.frozen.filter((x) => x.goalId !== d.g); save(); keepScroll();
+  },
   unfreeze: (d) => {
     const list = S.frozen.filter((x) => (d.id ? x.id === d.id : d.g ? x.goalId === d.g : x.area === d.a));
+    // מטרה שהופשרה חוזרת להיות מטרה רגילה של השנה
+    new Set(list.map((x) => x.goalId)).forEach((id) => { const g = goal(id); if (g) delete g.year; });
     S.frozen = S.frozen.filter((x) => !list.includes(x));
     list.forEach((x) => { x.date = null; x.time = null; if (x.week < weekOf(today())) x.week = weekOf(today()); delete x.frozen; S.tasks.push(x); });
     save(); keepScroll(); toast(`☀️ ${list.length} משימות חזרו (בלי יום, אפשר לשבץ בתכנון השבועי)`);

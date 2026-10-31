@@ -288,3 +288,7 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .search-empty { align-items: flex-start; }
 .dup { display: flex; flex-direction: column; gap: 4px; background: #FFF6D6; border-radius: 14px; padding: 10px 12px; font-size: 14px; }
 .dup em { font-style: normal; color: var(--muted); }
+.fz-goal { display: flex; flex-direction: column; gap: 6px; padding-block: 4px; }
+.fz-goal ul { margin: 0; }
+.card.frozen > .pill { margin-top: 12px; }
+.card.frozen .link-row.tight { margin-top: 0; }
