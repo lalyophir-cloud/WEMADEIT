@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '31.10 · מטרות ל-2027';
+const VERSION = '2.11 · פרויקט חדש';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -645,7 +645,7 @@ function viewBank() {
         <div class="bar"><div style="width:${pct(list)}%;background:${a.color}"></div></div></div></summary>
         ${why ? `<p class="why">למה: ${esc(why)}</p>` : ''}
         <div class="list">${list.sort(sortT).map((x) => taskRow(x, { showWeek: true })).join('')}</div>
-        ${id ? `<div class="goal-actions"><button class="link-row" data-act="addTo" data-g="${id}">+ משימה למטרה הזו</button><button class="link-row" data-act="freezeGoal" data-g="${id}">❄️ להקפיא ל-2027</button></div>` : ''}
+        ${id ? `<div class="goal-actions"><button class="link-row" data-act="addTo" data-g="${id}">+ משימה</button><button class="link-row" data-act="go" data-v="goal27" data-g="${id}">+ כמה משימות</button><button class="link-row" data-act="freezeGoal" data-g="${id}">❄️ להקפיא ל-2027</button></div>` : ''}
       </details>`;
       return `<section class="abank"><div class="ahead"><span class="adot" style="background:${a.color}">${a.icon}</span><h2>${a.name}</h2><span class="apct">${pct(at)}%</span></div>
         ${goals.filter((g) => at.some((x) => x.goalId === g.id)).map((g) => block(g.title, g.why, at.filter((x) => x.goalId === g.id), g.id)).join('')}
@@ -665,6 +665,7 @@ function viewBank() {
   <p class="muted">כל מה שצריך לעשות עד סוף השנה, במקום אחד.</p>
   <input id="bankq" class="search" type="search" placeholder="🔍 חיפוש משימה" value="${esc(bankView.q || '')}" data-in="bankq" aria-label="חיפוש משימה">
   <div id="bank-results">${searchHtml(bankView.q)}</div>
+  <button class="pill light wide" data-act="newProject">📁 + פרויקט חדש</button>
   <div id="bank-rest" class="stack"${(bankView.q || '').trim().length > 1 ? ' hidden' : ''}>
   <div class="seg"><button class="${by === 'area' ? 'on' : ''}" data-act="bank" data-by="area" data-a="${f}">לפי תחום ומטרה</button><button class="${by === 'week' ? 'on' : ''}" data-act="bank" data-by="week" data-a="${f}">לפי שבועות</button></div>
   ${S.tasks.length ? chips : ''}
@@ -707,16 +708,20 @@ function frozenSection() {
 }
 
 // הוספת מטרה ל-2027 (או משימות למטרה קיימת), עם משימות בשורות
+// מטרה או פרויקט עם משימות: לשנה הזו (V.now), או ל-2027
 function viewGoal27() {
   const g = goal(V.g);
+  const now = V.now || (g && !is2027(g));
   return `${topBack('חזרה', 'bank')}
-  <h1 class="serif">${g ? `🎯 ${esc(g.title)}` : '🗓️ מטרה ל-2027'}</h1>
-  <p class="lead">${t('נשמר בצד לשנה הבאה: לא מופיע בלו"ז ולא נספר באחוזים. {כשתרצי|כשתרצה}, {מפשירים|מפשירים} והמשימות חוזרות.')}</p>
-  ${g ? '' : `<div class="field"><label for="g27title">מה המטרה?</label><input id="g27title" type="text" data-autofocus></div>
+  <h1 class="serif">${g ? `🎯 ${esc(g.title)}` : now ? '📁 פרויקט חדש' : '🗓️ מטרה ל-2027'}</h1>
+  <p class="lead">${now ? t('פרויקט הוא מטרה עם משימות. כל משימה {תשבצי|תשבץ} ליום משלה בתכנון השבועי, והפרויקט יראה כמה {התקדמת|התקדמת}.') : t('נשמר בצד לשנה הבאה: לא מופיע בלו"ז ולא נספר באחוזים. {כשתרצי|כשתרצה}, {מפשירים|מפשירים} והמשימות חוזרות.')}</p>
+  ${g ? '' : `<div class="field"><label for="g27title">${now ? 'שם הפרויקט' : 'מה המטרה?'}</label><input id="g27title" type="text" data-autofocus></div>
   <div class="field"><label for="g27area">תחום</label><select id="g27area">${AREAS.map((a) => `<option value="${a.id}">${a.icon} ${a.name}</option>`).join('')}</select></div>
   <div class="field"><label for="g27why">למה זה חשוב לי? (לא חובה)</label><input id="g27why" type="text"></div>`}
-  <div class="field"><label for="g27tasks">משימות (לא חובה, שורה לכל משימה)</label><textarea id="g27tasks" rows="5" placeholder="לבנות אתר&#10;לצלם תמונות&#10;להשיק"></textarea></div>
-  <button class="pill dark wide" data-act="saveGoal27"${g ? ` data-g="${g.id}"` : ''}>שמירה</button>`;
+  <div class="field"><label for="g27tasks">משימות (שורה לכל משימה)</label><textarea id="g27tasks" rows="6" placeholder="לבחור נושא&#10;לכתוב תוכן&#10;לצלם&#10;להשיק"></textarea></div>
+  ${now ? `<div class="field"><label for="g27week">לאיזה שבוע?</label><select id="g27week">${planWeeks().map((w) => `<option value="${w}">${w === weekOf(today()) ? 'השבוע' : `שבוע ${weekNum(w)}`} · ${weekRange(w)}</option>`).join('')}</select>
+    <p class="muted small">אפשר לפזר אחר כך: בתכנון השבועי, או בתוך כל משימה.</p></div>` : ''}
+  <button class="pill dark wide" data-act="saveGoal27"${g ? ` data-g="${g.id}"` : ''}${now ? ' data-now="1"' : ''}>שמירה</button>`;
 }
 
 
@@ -1347,15 +1352,24 @@ const ACT = {
     if (!confirm(`להקפיא ל-2027 ${list.length} משימות${d.g ? ' של המטרה' : ' של כל התחום'}? הן יישמרו, ואפשר להפשיר בכל רגע.`)) return;
     freezeTasks(list); keepScroll(); toast(`❄️ ${list.length} משימות הוקפאו ל-2027`);
   },
+  newProject: () => go('goal27', { now: true }),
   saveGoal27: (d) => {
     let g = goal(d.g);
     if (!g) {
       const title = document.getElementById('g27title').value.trim();
       if (!title) { toast('צריך לכתוב מה המטרה 🙂'); return; }
-      g = { id: uid('g'), area: document.getElementById('g27area').value, title, why: document.getElementById('g27why').value.trim(), year: 2027, manual: true };
+      g = { id: uid('g'), area: document.getElementById('g27area').value, title, why: document.getElementById('g27why').value.trim(), manual: true };
+      if (!d.now) g.year = 2027;
       S.goals.push(g);
     }
     const lines = document.getElementById('g27tasks').value.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (d.now) {
+      const week = document.getElementById('g27week').value;
+      lines.forEach((title) => S.tasks.push({ id: uid('t'), goalId: g.id, area: g.area, title, week, date: null, time: null, together: false, status: 'todo', subs: [], manual: true }));
+      save(); openState[`g-${g.area}-${g.id}`] = true; bankView.a = g.area; bankView.q = ''; go('bank');
+      toast(lines.length ? `הפרויקט נשמר, עם ${lines.length} משימות 📁` : 'הפרויקט נשמר 📁');
+      return;
+    }
     lines.forEach((title) => S.frozen.push({ id: uid('t'), goalId: g.id, area: g.area, title, week: '2027-01-03', date: null, time: null, together: false, status: 'todo', subs: [], manual: true, frozen: true }));
     save(); openState.frozen = true; go('bank'); toast(lines.length ? `נשמר ל-2027, עם ${lines.length} משימות 🗓️` : 'המטרה נשמרה ל-2027 🗓️');
   },
