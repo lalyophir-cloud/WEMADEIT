@@ -214,8 +214,6 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .center { text-align: center; }
 
 /* יש לי זמן ומוטיבציה */
-.boost-btn { border: 0; border-radius: 24px; background: var(--ink); color: var(--bg); padding: 18px 20px; font-size: 18px; font-weight: 600; text-align: start; display: flex; flex-direction: column; gap: 4px; }
-.boost-btn small { font-size: 13px; font-weight: 400; opacity: .8; }
 .times { display: flex; flex-direction: column; gap: 10px; }
 .times button { border: 0; border-radius: 24px; background: var(--card); min-height: 72px; font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 14px; padding: 0 20px; }
 .times button span { font-size: 28px; }
@@ -250,15 +248,6 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .claude-way[open] summary { margin-bottom: 12px; }
 .claude-way .step { background: var(--bg); }
 
-/* מסדרים את מחר */
-.tm-count { flex-direction: row; align-items: baseline; gap: 8px; flex-wrap: wrap; background: #EDE6FA; }
-.tm-count b { font-size: 28px; }
-.tm-sec { display: flex; flex-direction: column; gap: 8px; }
-.tm-row { background: var(--card); border-radius: 20px; padding: 8px 12px; display: flex; gap: 10px; align-items: center; min-height: 60px; }
-.tm-row.done .ttl { text-decoration: line-through; color: var(--muted); }
-.tm-btns { display: flex; gap: 6px; flex-shrink: 0; }
-.tm-btns button { min-height: 40px; min-width: 40px; border: 0; border-radius: 999px; background: var(--line); padding: 0 12px; font-size: 13px; }
-.tm-btns button.add { background: var(--ink); color: var(--bg); font-weight: 600; }
 .card.changes { gap: 6px; }
 .card.changes p { font-size: 15px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .card.changes p:last-child { border: 0; padding: 0; }
@@ -292,3 +281,15 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .fz-goal ul { margin: 0; }
 .card.frozen > .pill { margin-top: 12px; }
 .card.frozen .link-row.tight { margin-top: 0; }
+
+/* כפתור קטן "יש לי זמן" ליד האווטאר */
+.hello > .hello-btns { display: flex; flex-direction: row; align-items: center; gap: 8px; flex-shrink: 0; }
+.mini-boost { border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 600; min-height: 40px; padding: 0 14px; }
+
+/* לא הושלמו בזמן: לוותר או לתזמן מחדש */
+.late-item { display: flex; flex-direction: column; gap: 6px; }
+.late-acts { display: flex; gap: 6px; padding-inline-start: 22px; }
+.late-acts button { border: 0; border-radius: 999px; background: rgba(255,255,255,.7); min-height: 36px; padding: 0 12px; font-size: 13px; font-weight: 500; }
+.late-acts button.on { background: var(--ink); color: var(--bg); }
+.late-item .quick { padding-inline-start: 22px; }
+.late-item .quick button { background: #fff; min-height: 38px; font-size: 14px; }
