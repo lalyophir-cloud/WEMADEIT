@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '7.11 · בלי יום משותף';
+const VERSION = '7.11 · יום מסודר לפי צבעים';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -56,8 +56,9 @@ const areaId = (name) => {
 const goal = (id) => S.goals.find((g) => g.id === id);
 const task = (id) => S.tasks.find((x) => x.id === id);
 const isLate = (x) => x.status !== 'done' && ((x.date && x.date < today()) || (!x.date && addDays(x.week, 6) < today()));
-// סדר משימות של יום: מה שבוצע יורד לסוף, והשאר לפי שעה
-const byDay = (a, b) => Number(a.status === 'done') - Number(b.status === 'done') || (a.time || '99').localeCompare(b.time || '99');
+// סדר משימות של יום: מה שבוצע יורד לסוף, משימות מאותו תחום (אותו צבע) אחת ליד השנייה, ובתוך תחום לפי שעה
+const areaIdx = (x) => AREAS.findIndex((a) => a.id === x.area);
+const byDay = (a, b) => Number(a.status === 'done') - Number(b.status === 'done') || areaIdx(a) - areaIdx(b) || (a.time || '99').localeCompare(b.time || '99');
 const pct = (list) => (list.length ? Math.round((list.filter((x) => x.status === 'done').length / list.length) * 100) : 0);
 const isStandalone = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 
