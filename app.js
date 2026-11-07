@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '7.11 · ✕ ותזמון מחדש';
+const VERSION = '7.11 · בלי יום משותף';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -103,7 +103,6 @@ function planPrompt() {
 - לפזר את התחומים לאורך השבועות, לא הכל באותו שבוע.
 - להשאיר את השבוע האחרון של דצמבר רגוע יחסית, לסיכום ולהשלמות.
 - משימה שחוזרת כמה פעמים בשבוע (אימון, פוסט): לרשום אותה פעם אחת לכל שבוע, ולציין כמה פעמים.
-- לסמן משימות שמתאימות ל**יום העבודה המשותף**: פעם בשבוע אני ו${u.partner} יושבים יחד, כל אחד על המשימות שלו. מתאים לשם: עבודה מול מחשב, כתיבה, תכנון, שיווק, כספים.
 - **לא לקבוע ימים ושעות.** רק שבועות. את השיבוץ ליומן נעשה בכל מוצ"ש, בתכנון שבועי נפרד.
 
 ## מספרי השבועות (להשתמש בדיוק בהם)
@@ -115,7 +114,7 @@ ${AREAS.map((a) => a.name).join(', ')}
 ## הפורמט הסופי (רק בשלב 4)
 בלוק קוד אחד בלבד, עם JSON תקין, בלי הערות ובלי טקסט נוסף בתוך הבלוק.
 - goals: המטרות. id קצר (g1, g2...), area הוא שם תחום מהרשימה, title המטרה, why למה זה חשוב לי.
-- tasks: המשימות. goal הוא ה-id של המטרה, title המשימה, week מספר השבוע (1-${weeks.length}), times כמה פעמים באותו שבוע (בדרך כלל 1), together הוא true אם מתאים ליום המשותף.
+- tasks: המשימות. goal הוא ה-id של המטרה, title המשימה, week מספר השבוע (1-${weeks.length}), times כמה פעמים באותו שבוע (בדרך כלל 1).
 דוגמה למבנה:
 ${fence}json
 {
@@ -124,7 +123,7 @@ ${fence}json
     { "id": "g1", "area": "בריאות", "title": "להתאמן באופן קבוע", "why": "כדי שיהיה לי כוח לעסק" }
   ],
   "tasks": [
-    { "goal": "g1", "title": "אימון 30 דקות", "week": 1, "times": 3, "together": false }
+    { "goal": "g1", "title": "אימון 30 דקות", "week": 1, "times": 3 }
   ]
 }
 ${fence}
@@ -148,23 +147,19 @@ function weeklyPrompt(w) {
   const wk = S.weeks[w] || {};
   const line = (x) => {
     const g = goal(x.goalId);
-    return `- [${x.id}] ${x.title} · תחום: ${area(x.area).name}${g ? ` · מטרה: ${g.title}` : ''}${x.together ? ' ⭐' : ''}${x.subs.length ? `\n  צעדים קטנים: ${x.subs.map((s) => s.title).join(', ')}` : ''}`;
+    return `- [${x.id}] ${x.title} · תחום: ${area(x.area).name}${g ? ` · מטרה: ${g.title}` : ''}${x.subs.length ? `\n  צעדים קטנים: ${x.subs.map((s) => s.title).join(', ')}` : ''}`;
   };
   const late = lateBefore(w);
   const sched = (S.answers.schedule && S.answers.schedule.a) || [];
-  const together = wk.together && wk.together !== 'none'
-    ? `יום העבודה המשותף שלי ושל ${u.partner} השבוע: ${fmtDay(wk.together)}${wk.time ? `, ${wk.time}` : ''}.`
-    : `השבוע אין יום עבודה משותף עם ${u.partner}.`;
   return t(`היי Claude, זה התכנון השבועי שלי מאפליקציית WEMADEIT. {פנה אליי בלשון נקבה|פנה אליי בלשון זכר}.
 
 השבוע: ${fmtDay(w)} עד ${fmtDay(addDays(w, 6))}.
-${together}
 
 מה לעשות:
 1. אם יש לך גישה ליומן Google שלי, תסתכל עליו בשבוע הזה ותמצא זמנים פנויים. אם אין לך גישה, תשאל אותי מה הלו"ז שלי השבוע.
-2. תשבץ את המשימות שלמטה בימים ובשעות. בלי להעמיס, ולפי מה שכתבתי על עצמי. משימות עם ⭐ עדיף לשבץ ביום המשותף.
+2. תשבץ את המשימות שלמטה בימים ובשעות. בלי להעמיס, ולפי מה שכתבתי על עצמי.
 3. תראה לי את ההצעה ונתקן אם צריך.
-4. אחרי שאכתוב "{מאשרת|מאשר}": תוסיף כל משימה כאירוע ביומן שלי, עם הכותרת "WEMADEIT · שם המשימה"${wk.together && wk.together !== 'none' ? ', ואת היום המשותף כאירוע "יום עבודה משותף 💛"' : ''}.
+4. אחרי שאכתוב "{מאשרת|מאשר}": תוסיף כל משימה כאירוע ביומן שלי, עם הכותרת "WEMADEIT · שם המשימה".
 5. ובסוף תוציא בלוק קוד אחד בפורמט הזה (id בדיוק כמו בסוגריים המרובעים, time אפשר להשאיר ריק):
 ${fence}json
 { "type": "wemadeit-week", "week": "${w}", "items": [ { "id": "t12", "date": "${addDays(w, 2)}", "time": "09:00" } ] }
@@ -203,7 +198,7 @@ function importPlan(p) {
       S.tasks.push({
         id: uid('t'), goalId: g ? g.id : null, area: g ? g.area : areaId(x.area),
         title: n > 1 ? `${x.title} (${i}/${n})` : String(x.title || ''),
-        week: weeks[wi - 1], date: null, time: null, together: !!x.together, status: 'todo', subs: [],
+        week: weeks[wi - 1], date: null, time: null, status: 'todo', subs: [],
       });
     }
   });
@@ -323,7 +318,7 @@ function taskRow(x, opts = {}) {
   return `<div class="trow${x.status === 'done' ? ' done' : ''}${late ? ' late' : ''}">
     <span class="dot" style="background:${a.color}"></span>
     <button class="tbody" data-act="open" data-id="${x.id}">
-      <span class="ttl">${x.together ? '⭐ ' : ''}${esc(x.title)}</span>
+      <span class="ttl">${esc(x.title)}</span>
       <span class="meta">${late ? '<em>נדחה</em> · ' : ''}${esc(meta.join(' · '))}</span>
     </button>
     ${opts.remind && x.status !== 'done' ? `<button class="bell" data-act="remind" data-id="${x.id}" aria-label="להוסיף לתזכורות">🔔</button>` : ''}
@@ -337,7 +332,7 @@ function nextStep() {
   const w = targetWeek();
   if (!(S.weeks[w] && S.weeks[w].planned)) {
     const sat = new Date().getDay() === 6;
-    return { n: 3, title: sat ? 'מוצ"ש: מתכננים את השבוע הבא' : 'תכנון שבועי', text: t(`בוחרים יום עבודה משותף עם ${me().partner}, ו-Claude משבץ את המשימות של השבוע לפי היומן שלך.`), btn: t('{בואי|בוא} נתכנן'), v: 'weekly' };
+    return { n: 3, title: sat ? 'מוצ"ש: מתכננים את השבוע הבא' : 'תכנון שבועי', text: t('משבצים את המשימות של השבוע לימים.'), btn: t('{בואי|בוא} נתכנן'), v: 'weekly' };
   }
   return null;
 }
@@ -387,7 +382,6 @@ function viewHome() {
     ${late.length > 1 ? `<p class="small">ועוד ${late.length - 1} משימות שנדחו</p>` : ''}
     <button class="pill dark" data-act="open" data-id="${late[0].id}" data-split="1">${t('{בואי|בוא}')} נפרק</button>
   </section>` : ''}
-  ${wk.together === td ? `<div class="card together">💛 היום זה יום העבודה המשותף שלך ושל ${esc(u.partner)}${wk.time ? ` (${esc(wk.time)})` : ''}</div>` : ''}
   <div class="sec-head"><h2 class="serif">מה הצעד הבא?</h2><span class="muted small">${todays.length ? `${todays.filter((x) => x.status === 'done').length}/${todays.length} היום` : ''}</span></div>
   ${todays.some((x) => x.status !== 'done') ? `<button class="link-row tight" data-act="remindMany" data-scope="day">🔔 כל המשימות של היום לתזכורות</button>` : ''}
   ${todays.length ? `<div class="list">${todays.map((x) => taskRow(x, { remind: true })).join('')}</div>` : `<p class="empty">${S.tasks.length ? 'אין משימות להיום. יום חופשי, או זמן טוב לקדם משהו מהשבוע 🙂' : 'כשתהיה תוכנית, המשימות של היום יופיעו כאן.'}</p>`}
@@ -423,7 +417,7 @@ function viewWeek() {
   const late = w === weekOf(today()) ? S.tasks.filter(isLate).sort((a, b) => (a.date || a.week).localeCompare(b.date || b.week)) : [];
   const dayBlock = (d) => {
     const list = S.tasks.filter((x) => x.date === d).sort(byDay);
-    return `<div class="day${d === today() ? ' is-today' : ''}"><div class="day-h"><b>${DAYS[pd(d).getDay()]}</b> <span>${short(d)}</span>${wk.together === d ? ' <span class="chip">💛 יחד</span>' : ''}</div>
+    return `<div class="day${d === today() ? ' is-today' : ''}"><div class="day-h"><b>${DAYS[pd(d).getDay()]}</b> <span>${short(d)}</span></div>
     ${list.length ? `<div class="list">${list.map((x) => taskRow(x)).join('')}</div>` : '<p class="muted small pad">-</p>'}</div>`;
   };
   const inWeek = S.tasks.filter((x) => x.date && x.date >= w && x.date <= addDays(w, 6));
@@ -437,13 +431,7 @@ function viewWeek() {
     <button class="round" data-act="week" data-w="${addDays(w, 7)}" aria-label="שבוע הבא">${icon('next', 20)}</button>
   </div>
   ${inWeek.some((x) => x.status !== 'done' && x.date >= today()) ? `<button class="pill light wide" data-act="remindMany" data-scope="week" data-w="${w}">🔔 כל השבוע לתזכורות באייפון</button>` : ''}
-  ${canPlan ? `<section class="card next"><span class="label">הצעד הבא</span><h2>לתכנן את השבוע</h2><p>${t('לבחור יום משותף ולשבץ את המשימות לפי היומן.')}</p><button class="pill dark" data-act="go" data-v="weekly" data-w="${w}">${t('{בואי|בוא} נתכנן')}</button></section>` : ''}
-  <div class="card together tog-card">
-    <div class="tog-head"><span>💛 ${wk.together && wk.together !== 'none' ? `יום עבודה משותף: ${fmtDay(wk.together)}${wk.time ? `, ${esc(wk.time)}` : ''}` : wk.together === 'none' ? 'השבוע אין יום משותף' : 'עוד לא נבחר יום משותף'}</span>
-    <button class="link-row tight" data-act="togPick">${ui.togPick ? 'סגירה' : wk.together ? 'לשנות' : 'לבחור'}</button></div>
-    ${ui.togPick ? `<div class="daypick">${days.map((d) => `<button class="${wk.together === d ? 'on' : ''}" data-act="together" data-w="${w}" data-d="${d}"><b>${DAYS[pd(d).getDay()]}</b><span>${short(d)}</span></button>`).join('')}
-      <button class="none${wk.together === 'none' ? ' on' : ''}" data-act="together" data-w="${w}" data-d="none">אין השבוע</button></div>` : ''}
-  </div>
+  ${canPlan ? `<section class="card next"><span class="label">הצעד הבא</span><h2>לתכנן את השבוע</h2><p>${t('לשבץ את המשימות של השבוע לימים.')}</p><button class="pill dark" data-act="go" data-v="weekly" data-w="${w}">${t('{בואי|בוא} נתכנן')}</button></section>` : ''}
   ${late.length ? `<section class="late-sec"><div class="day-h"><b>לא הושלמו בזמן</b> <span>${lateGroups(late).length}</span></div><div class="list">${lateRows(lateGroups(late))}</div></section>` : ''}
   ${days.filter((d) => !past.includes(d)).map(dayBlock).join('')}
   ${uns.length ? `<div class="day"><div class="day-h"><b>עוד לא שובץ</b></div><div class="list">${uns.map((x) => taskRow(x)).join('')}</div></div>` : ''}`;
@@ -462,8 +450,7 @@ function viewMonth() {
   for (let d = 1; d <= daysIn; d++) {
     const day = `${m}-${pad(d)}`;
     const list = monthTasks.filter((x) => x.date === day);
-    const tog = (S.weeks[weekOf(day)] || {}).together === day;
-    cells.push(`<button class="cell${day === sel ? ' sel' : ''}${day === today() ? ' tdy' : ''}${tog ? ' tog' : ''}" data-act="day" data-d="${day}"><span>${d}</span><i>${list.slice(0, 3).map((x) => `<s style="background:${x.status === 'done' ? '#1C1B19' : area(x.area).color}"></s>`).join('')}</i></button>`);
+    cells.push(`<button class="cell${day === sel ? ' sel' : ''}${day === today() ? ' tdy' : ''}" data-act="day" data-d="${day}"><span>${d}</span><i>${list.slice(0, 3).map((x) => `<s style="background:${x.status === 'done' ? '#1C1B19' : area(x.area).color}"></s>`).join('')}</i></button>`);
   }
   const selList = S.tasks.filter((x) => x.date === sel).sort(byDay);
   const monthAll = S.tasks.filter((x) => (x.date || x.week).startsWith(m));
@@ -550,7 +537,7 @@ function viewBoost() {
   <div class="card suggest" style="border-color:${a.color}">
     <span class="chip" style="background:${a.color}">${a.icon} ${a.name}</span>
     ${goal(cur.x.goalId) ? `<span class="goal-line">🎯 ${esc(goal(cur.x.goalId).title)}</span>` : ''}
-    ${cur.s ? `<span class="muted small">צעד קטן מתוך: ${esc(cur.x.title)}</span><h2 class="serif">${esc(cur.s.title)}</h2>` : `<h2 class="serif">${cur.x.together ? '⭐ ' : ''}${esc(cur.x.title)}</h2>`}
+    ${cur.s ? `<span class="muted small">צעד קטן מתוך: ${esc(cur.x.title)}</span><h2 class="serif">${esc(cur.s.title)}</h2>` : `<h2 class="serif">${esc(cur.x.title)}</h2>`}
     <p class="why-line">💡 ${esc(cur.why)}</p>
     ${!cur.s && cur.x.subs.some((y) => !y.done) ? `<p class="small muted">יש בה ${cur.x.subs.filter((y) => !y.done).length} צעדים קטנים</p>` : ''}
     <button class="pill dark wide" data-act="boostGo" data-id="${cur.x.id}">${t('יאללה, {עושה|עושה} את זה עכשיו')} ⚡</button>
@@ -799,7 +786,6 @@ function viewWeekly() {
   const w = V.w || targetWeek();
   const wk = S.weeks[w] || {};
   const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(w, i));
-  const partner = me().partner;
   const inWeek = (x) => (x.date ? weekOf(x.date) === w : x.week === w);
   const list = S.tasks.filter((x) => x.status !== 'done' && (inWeek(x) || (x.week < w && isLate(x))))
     .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })); // סדר קבוע, כדי שמשימה לא תקפוץ כשמשבצים אותה
@@ -813,9 +799,9 @@ function viewWeekly() {
     const a = area(x.area), g = goal(x.goalId);
     return `<div class="plan-row">
       <div class="plan-top"><span class="dot" style="background:${a.color}"></span>
-        <button class="tbody" data-act="open" data-id="${x.id}"><span class="ttl">${x.together ? '⭐ ' : ''}${esc(x.title)}</span>
+        <button class="tbody" data-act="open" data-id="${x.id}"><span class="ttl">${esc(x.title)}</span>
         <span class="meta">${!inWeek(x) ? '<em>נדחה</em> · ' : ''}${esc(g ? `${a.name}: ${g.title}` : a.name)}</span></button></div>
-      <div class="plan-days">${days.map((d, i) => `<button class="${dates.includes(d) ? 'on' : ''}${wk.together === d ? ' tog' : ''}" data-act="planDay" data-id="${x.id}" data-d="${d}" data-w="${w}" aria-label="יום ${DAYS[i]}">${DAY_LETTERS[i]}'</button>`).join('')}
+      <div class="plan-days">${days.map((d, i) => `<button class="${dates.includes(d) ? 'on' : ''}" data-act="planDay" data-id="${x.id}" data-d="${d}" data-w="${w}" aria-label="יום ${DAYS[i]}">${DAY_LETTERS[i]}'</button>`).join('')}
         <button class="later" data-act="planNext" data-id="${x.id}" data-w="${w}" aria-label="לשבוע הבא">←</button></div>
     </div>`;
   };
@@ -827,12 +813,8 @@ function viewWeekly() {
     <button class="${w === addDays(cur, 7) ? 'on' : ''}" data-act="go" data-v="weekly" data-w="${addDays(cur, 7)}">הבא · ${short(addDays(cur, 7))}</button>
   </div>
   ${handoff([
-    { title: 'בוחרים יום עבודה משותף 💛', body: `<p>${t(`{תחליטו|תחליטו} ביחד עם ${partner} איזה יום משריינים השבוע, ושניכם {בוחרים|בוחרים} את אותו יום.`)}</p>
-      <div class="daypick">${days.map((d) => `<button class="${wk.together === d ? 'on' : ''}" data-act="together" data-w="${w}" data-d="${d}"><b>${DAYS[pd(d).getDay()]}</b><span>${short(d)}</span></button>`).join('')}
-      <button class="none${wk.together === 'none' ? ' on' : ''}" data-act="together" data-w="${w}" data-d="none">אין השבוע</button></div>
-      <label class="small" for="ttime">שעות (לא חובה)</label><input id="ttime" type="text" placeholder="למשל 10:00-14:00" value="${esc(wk.time || '')}" data-ch="ttime" data-w="${w}">` },
-    { title: `משבצים את המשימות (${groups.length})`, body: `<p>${t('לכל משימה {בוחרים|בוחרים} יום, או כמה ימים. לחיצה נוספת מבטלת. החץ ← מעביר לשבוע הבא. היום המשותף מסומן בוורוד 💛')}</p>
-      <div class="load">${days.map((d, i) => `<span class="${load[i] ? 'has' : ''}${wk.together === d ? ' tog' : ''}"><b>${DAY_LETTERS[i]}'</b>${load[i]}</span>`).join('')}</div>
+    { title: `משבצים את המשימות (${groups.length})`, body: `<p>${t('לכל משימה {בוחרים|בוחרים} יום, או כמה ימים. לחיצה נוספת מבטלת. החץ ← מעביר לשבוע הבא.')}</p>
+      <div class="load">${days.map((d, i) => `<span class="${load[i] ? 'has' : ''}"><b>${DAY_LETTERS[i]}'</b>${load[i]}</span>`).join('')}</div>
       ${groups.length ? `<div class="list">${groups.map(row).join('')}</div>` : `<p class="muted small">${t('אין משימות לשבוע הזה. אפשר להוסיף, או לבנות תוכנית עם Claude.')}</p>`}
       <button class="pill light" data-act="planAdd" data-w="${w}">+ משימה חדשה לשבוע</button>` },
     { title: 'סיימנו!', body: `<p>${t('אפשר לחזור ולשנות בכל רגע.')}</p><button class="pill dark wide" data-act="planDone" data-w="${w}">✓ השבוע מתוכנן</button>` },
@@ -840,7 +822,7 @@ function viewWeekly() {
   <details class="card claude-way" ${openAttr('claude-week', false)}>
     <summary><b>🤖 או: לתת ל-Claude לשבץ לפי היומן</b><span class="muted small">${t('Claude מסתכל ביומן Google, משבץ ומכניס את המשימות ליומן')}</span></summary>
     ${handoff([
-      { title: t('{תעתיקי|תעתיק} את ההודעה'), body: `<p>${t('בהודעה יש את המשימות של השבוע, היום המשותף ומה {שכתבת|שכתבת} על הלו"ז שלך.')}</p>${wk.together ? sendButtons('week') : '<p class="muted small">קודם בוחרים יום משותף (או "אין השבוע").</p>'}` },
+      { title: t('{תעתיקי|תעתיק} את ההודעה'), body: `<p>${t('בהודעה יש את המשימות של השבוע ומה {שכתבת|שכתבת} על הלו"ז שלך.')}</p>${sendButtons('week')}` },
       { title: t('{תפתחי|תפתח} את Claude ו{תדביקי|תדביק}'), body: `<p>${t('Claude יציע איפה לשבץ כל משימה ויכניס אותן ליומן אחרי ש{תאשרי|תאשר}.')}</p>${openClaude}` },
       { title: t('{תעתיקי|תעתיק} את השיבוץ בחזרה'), body: `<textarea rows="4" data-in="paste" placeholder="${t('{הדביקי|הדבק} כאן את הקוד ש-Claude נתן')}">${esc(ui.paste || '')}</textarea>
         ${ui.err ? `<p class="warn">${esc(ui.err)}</p>` : ''}
@@ -854,10 +836,7 @@ function viewTask() {
   if (!x) return `${topBack()}<p class="empty">המשימה לא נמצאה.</p>`;
   const a = area(x.area), g = goal(x.goalId);
   const late = isLate(x);
-  const tog = togetherFor(x);
-  const quick = [['today', 'היום'], ['tomorrow', 'מחר']];
-  if (tog) quick.push(['together', `💛 ביום המשותף (${DAYS[pd(tog).getDay()]})`]);
-  quick.push(['nextweek', 'לשבוע הבא'], ['none', 'בלי תאריך']);
+  const quick = [['today', 'היום'], ['tomorrow', 'מחר'], ['nextweek', 'לשבוע הבא'], ['none', 'בלי תאריך']];
   const weeks = [...new Set([...(S.planWeeks || []), ...planWeeks(), x.week])].filter((w) => w >= weekOf(today()) || w === x.week).sort();
   if (ui.edit) {
     return `${topBack('חזרה', V.from || 'home', V.fromW)}
@@ -865,7 +844,6 @@ function viewTask() {
     <div class="field"><label for="etitle">מה עושים?</label><input id="etitle" type="text" value="${esc(x.series ? x.base : x.title)}"></div>
     <div class="field"><label for="earea">תחום</label><select id="earea">${AREAS.map((y) => `<option value="${y.id}"${y.id === x.area ? ' selected' : ''}>${y.icon} ${y.name}</option>`).join('')}</select></div>
     ${S.goals.length ? `<div class="field"><label for="egoal">מטרה</label><select id="egoal"><option value="">בלי</option>${S.goals.map((y) => `<option value="${y.id}"${y.id === x.goalId ? ' selected' : ''}>${esc(area(y.area).name)}: ${esc(y.title)}</option>`).join('')}</select></div>` : ''}
-    <label class="toggle"><input id="etog" type="checkbox" ${x.together ? 'checked' : ''}> מתאים ליום המשותף ⭐</label>
     ${x.series ? `<label class="toggle"><input id="eall" type="checkbox" checked> לשנות גם בכל החזרות הבאות 🔁</label>` : ''}
     <div class="row-btns"><button class="pill light" data-act="editCancel">ביטול</button><button class="pill dark" data-act="editSave">שמירה</button></div>
     <button class="pill light wide danger" data-act="delTask">${x.series ? 'למחוק רק את המשימה הזו' : 'מחיקת המשימה'}</button>
@@ -874,7 +852,7 @@ function viewTask() {
   return `${topBack('חזרה', V.from || 'home', V.fromW)}
   <div class="card hero" style="background:${a.color}">
     <span class="chip light">${a.icon} ${a.name}</span>
-    <h1 class="serif task-title">${x.together ? '⭐ ' : ''}${esc(x.title)}</h1>
+    <h1 class="serif task-title">${esc(x.title)}</h1>
     ${g ? `<span class="small">מטרה: ${esc(g.title)}</span>` : ''}
     <span class="when">📅 ${esc(whenText(x))}</span>
     ${x.rep ? `<span class="small">🔁 חוזרת: ${esc(x.rep)}</span>` : ''}
@@ -912,19 +890,10 @@ function whenText(x) {
   return `שבוע ${weekNum(x.week)} (${weekRange(x.week)}), עוד לא נקבע יום`;
 }
 
-// היום המשותף הקרוב שאפשר להזיז אליו: בשבוע של המשימה, ואם עבר, בשבוע הנוכחי
-function togetherFor(x) {
-  for (const w of [weekOf(x.date || x.week), weekOf(today()), addDays(weekOf(today()), 7)]) {
-    const d = (S.weeks[w] || {}).together;
-    if (d && d !== 'none' && d >= today()) return d;
-  }
-  return null;
-}
-
 const REPS = [['once', 'פעם אחת'], ['daily', 'כל יום'], ['days', 'בימים קבועים'], ['weekly', 'כמה פעמים בשבוע'], ['monthly', 'פעם בחודש']];
 
 function viewAdd() {
-  const f = ui.add || (ui.add = { title: V.title || '', area: AREAS[0].id, goal: V.g || '', together: false, rep: 'once', date: V.date || '', time: '', days: [], n: 3, start: V.w && V.w > today() ? V.w : today(), end: END, week: V.w || null });
+  const f = ui.add || (ui.add = { title: V.title || '', area: AREAS[0].id, goal: V.g || '', rep: 'once', date: V.date || '', time: '', days: [], n: 3, start: V.w && V.w > today() ? V.w : today(), end: END, week: V.w || null });
   const count = repeatDates(f).length;
   return `${topBack('חזרה', V.back || 'home')}
   <h1 class="serif">משימה חדשה</h1>
@@ -947,7 +916,6 @@ function viewAdd() {
       ${f.rep !== 'weekly' ? `<div class="field"><label for="ntime2">שעה (לא חובה)</label><input id="ntime2" type="time" value="${f.time}" data-in="add" data-f="time"></div>` : ''}
       <p class="count">${count ? `ייווצרו ${count} משימות, ${esc(repText(f))}` : 'עוד לא נבחר מתי'}</p>` : ''}
   </section>
-  <label class="toggle"><input type="checkbox" ${f.together ? 'checked' : ''} data-in="add" data-f="together"> מתאים ליום המשותף ⭐</label>
   <button class="pill dark wide" data-act="addTask">הוספה</button>`;
 }
 
@@ -1032,7 +1000,7 @@ function viewRemind() {
   ${S.remind.on ? '<button class="pill light wide" data-act="remindOff">לנתק ולחזור לתפריט השיתוף</button>' : ''}`;
 }
 
-// משימות שמגיעות מצ'אט עם Claude: {"type":"wemadeit-add","tasks":[{"title","area","goal","dates":[...],"week","together"}]}
+// משימות שמגיעות מצ'אט עם Claude: {"type":"wemadeit-add","tasks":[{"title","area","goal","dates":[...],"week"}]}
 function pasteTasks(p) {
   const out = [];
   (p.tasks || []).forEach((x) => {
@@ -1054,7 +1022,7 @@ function pasteTasks(p) {
     const group = !series && dates.length > 1 ? uid('m') : undefined;
     (dates.length ? dates : [null]).forEach((d) => out.push({
       id: uid('t'), goalId: g ? g.id : null, area: g ? g.area : areaId(x.area), title, week: d ? weekOf(d) : week, date: d,
-      time: null, together: !!x.together, status: 'todo', subs: (x.steps || []).map((st) => ({ id: uid('s'), title: String(st), done: false })), manual: true, group,
+      time: null, status: 'todo', subs: (x.steps || []).map((st) => ({ id: uid('s'), title: String(st), done: false })), manual: true, group,
       series, rep, base: title, suffix: '',
     }));
   });
@@ -1067,7 +1035,7 @@ function chatPrompt() {
   const when = (x) => (x.date ? `${x.date} (${DAYS[pd(x.date).getDay()]})` : `שבוע ${x.week}, בלי יום`);
   const line = (x) => {
     const g = goal(x.goalId);
-    return `- [${x.id}] ${x.title} · ${area(x.area).name}${g ? ` · מטרה: ${g.title}` : ''} · ${when(x)}${x.status === 'doing' ? ' · בתהליך' : ''}${isLate(x) ? ' · נדחה' : ''}${x.together ? ' · ⭐' : ''}${x.subs.length ? ` · צעדים: ${x.subs.map((y) => `${y.done ? '✓' : '○'} ${y.title}`).join(', ')}` : ''}`;
+    return `- [${x.id}] ${x.title} · ${area(x.area).name}${g ? ` · מטרה: ${g.title}` : ''} · ${when(x)}${x.status === 'doing' ? ' · בתהליך' : ''}${isLate(x) ? ' · נדחה' : ''}${x.subs.length ? ` · צעדים: ${x.subs.map((y) => `${y.done ? '✓' : '○'} ${y.title}`).join(', ')}` : ''}`;
   };
   const open = S.tasks.filter((x) => x.status !== 'done');
   const single = open.filter((x) => !x.series).sort((a, b) => (a.date || a.week).localeCompare(b.date || b.week));
@@ -1094,7 +1062,7 @@ ${fence}json
   { "do": "done", "id": "t14" },
   { "do": "delete", "id": "t15" },
   { "do": "delete", "id": "t16", "all_repeats": true },
-  { "do": "edit", "id": "t17", "title": "שם חדש", "area": "שיווק", "together": true },
+  { "do": "edit", "id": "t17", "title": "שם חדש", "area": "שיווק" },
   { "do": "step", "id": "t18", "title": "צעד קטן חדש" },
   { "do": "add", "title": "משימה חדשה", "area": "עבודה", "date": "${addDays(td, 2)}" },
   { "do": "add", "title": "כמה ימים", "area": "שיווק", "dates": ["${addDays(td, 1)}", "${addDays(td, 3)}"] },
@@ -1129,7 +1097,7 @@ function readChanges(p) {
     if (a.do === 'move' && (isDate(a.date) || a.date === null || isDate(a.week))) ops.push({ kind: 'move', x, date: isDate(a.date) ? a.date : null, week: isDate(a.week) ? weekOf(a.week) : null });
     else if (a.do === 'done' || a.do === 'undone') ops.push({ kind: a.do, x });
     else if (a.do === 'delete') ops.push({ kind: 'delete', x, list: a.all_repeats && x.series ? seriesFrom(x) : [x] });
-    else if (a.do === 'edit') ops.push({ kind: 'edit', x, title: a.title ? String(a.title) : null, area: a.area ? areaId(a.area) : null, together: typeof a.together === 'boolean' ? a.together : null });
+    else if (a.do === 'edit') ops.push({ kind: 'edit', x, title: a.title ? String(a.title) : null, area: a.area ? areaId(a.area) : null });
     else if (a.do === 'step' && a.title) ops.push({ kind: 'step', x, title: String(a.title) });
   });
   return ops;
@@ -1142,7 +1110,7 @@ function opText(o) {
   if (o.kind === 'done') return `✓ בוצע: ${n(o.x)}`;
   if (o.kind === 'undone') return `↩️ לא בוצע: ${n(o.x)}`;
   if (o.kind === 'delete') return `🗑️ מחיקה: ${n(o.x)}${o.list.length > 1 ? ` וכל ${o.list.length - 1} החזרות הבאות` : ''}`;
-  if (o.kind === 'edit') return `✏️ עריכה: ${n(o.x)}${o.title ? ` ← "${o.title}"` : ''}${o.area ? ` · ${area(o.area).name}` : ''}${o.together !== null ? (o.together ? ' · ⭐' : ' · בלי ⭐') : ''}`;
+  if (o.kind === 'edit') return `✏️ עריכה: ${n(o.x)}${o.title ? ` ← "${o.title}"` : ''}${o.area ? ` · ${area(o.area).name}` : ''}`;
   if (o.kind === 'step') return `➕ צעד קטן ב-${n(o.x)}: ${o.title}`;
   return '';
 }
@@ -1154,7 +1122,7 @@ function applyChanges(ops) {
     else if (o.kind === 'done') o.x.status = 'done';
     else if (o.kind === 'undone') o.x.status = 'todo';
     else if (o.kind === 'delete') { const ids = new Set(o.list.map((y) => y.id)); S.tasks = S.tasks.filter((y) => !ids.has(y.id)); }
-    else if (o.kind === 'edit') { if (o.title) { o.x.title = o.title; o.x.base = o.title; } if (o.area && !o.x.goalId) o.x.area = o.area; if (o.together !== null) o.x.together = o.together; }
+    else if (o.kind === 'edit') { if (o.title) { o.x.title = o.title; o.x.base = o.title; } if (o.area && !o.x.goalId) o.x.area = o.area; }
     else if (o.kind === 'step') o.x.subs.push({ id: uid('s'), title: o.title, done: false });
   });
   save();
@@ -1320,8 +1288,6 @@ const ACT = {
   planNext: (d) => { const x = task(d.id); x.week = addDays(d.w, 7); x.date = null; x.time = null; save(); V.w = d.w; toast('עבר לשבוע הבא'); },
   planAdd: (d) => go('add', { back: V.name, w: d.w, date: d.date }),
   planDone: (d) => { S.weeks[d.w] = { ...(S.weeks[d.w] || {}), planned: true }; save(); go('week', { w: d.w }); toast('השבוע מתוכנן! שבוע מוצלח 💛'); },
-  togPick: () => { ui.togPick = !ui.togPick; keepScroll(); },
-  together: (d) => { S.weeks[d.w] = { ...(S.weeks[d.w] || {}), together: d.d }; save(); V.w = d.w; ui.togPick = false; keepScroll(); },
   freeze: () => {
     const x = task(V.id);
     const list = x.series ? seriesFrom(x) : [x];
@@ -1347,12 +1313,12 @@ const ACT = {
     const lines = document.getElementById('g27tasks').value.split('\n').map((l) => l.trim()).filter(Boolean);
     if (d.now) {
       const week = document.getElementById('g27week').value;
-      lines.forEach((title) => S.tasks.push({ id: uid('t'), goalId: g.id, area: g.area, title, week, date: null, time: null, together: false, status: 'todo', subs: [], manual: true }));
+      lines.forEach((title) => S.tasks.push({ id: uid('t'), goalId: g.id, area: g.area, title, week, date: null, time: null, status: 'todo', subs: [], manual: true }));
       save(); openState[`g-${g.area}-${g.id}`] = true; bankView.a = g.area; bankView.q = ''; go('bank');
       toast(lines.length ? `הפרויקט נשמר, עם ${lines.length} משימות 📁` : 'הפרויקט נשמר 📁');
       return;
     }
-    lines.forEach((title) => S.frozen.push({ id: uid('t'), goalId: g.id, area: g.area, title, week: '2027-01-03', date: null, time: null, together: false, status: 'todo', subs: [], manual: true, frozen: true }));
+    lines.forEach((title) => S.frozen.push({ id: uid('t'), goalId: g.id, area: g.area, title, week: '2027-01-03', date: null, time: null, status: 'todo', subs: [], manual: true, frozen: true }));
     save(); openState.frozen = true; go('bank'); toast(lines.length ? `נשמר ל-2027, עם ${lines.length} משימות 🗓️` : 'המטרה נשמרה ל-2027 🗓️');
   },
   delGoal27: (d) => {
@@ -1431,7 +1397,7 @@ const ACT = {
     const gEl = document.getElementById('egoal');
     const allEl = document.getElementById('eall');
     const goalId = (gEl && gEl.value) || null;
-    const changes = { goalId, area: goalId ? goal(goalId).area : document.getElementById('earea').value, together: document.getElementById('etog').checked };
+    const changes = { goalId, area: goalId ? goal(goalId).area : document.getElementById('earea').value };
     const targets = allEl && allEl.checked ? seriesFrom(x) : [x];
     targets.forEach((y) => { Object.assign(y, changes); y.base = title; y.title = title + (x.series ? y.suffix || '' : ''); });
     save(); ui.edit = false; toast(targets.length > 1 ? `נשמר ב-${targets.length} משימות ✓` : 'נשמר ✓');
@@ -1444,7 +1410,7 @@ const ACT = {
 
   move: (d) => {
     const x = task(V.id);
-    const to = { today: today(), tomorrow: addDays(today(), 1), together: togetherFor(x) }[d.to];
+    const to = { today: today(), tomorrow: addDays(today(), 1) }[d.to];
     if (to) { x.date = to; x.week = weekOf(to); }
     else if (d.to === 'nextweek') { x.week = addDays(weekOf(today()), 7); x.date = null; x.time = null; }
     else if (d.to === 'none') { x.date = null; x.time = null; if (x.week < weekOf(today())) x.week = weekOf(today()); }
@@ -1464,7 +1430,7 @@ const ACT = {
     const series = f.rep === 'once' ? null : uid('r');
     list.forEach((o) => S.tasks.push({
       id: uid('t'), goalId: g ? g.id : null, area: g ? g.area : f.area, title: title + (o.suffix || ''), base: title, suffix: o.suffix || '',
-      week: o.week, date: o.date, time: o.date ? f.time || null : null, together: f.together, status: 'todo', subs: [], manual: true,
+      week: o.week, date: o.date, time: o.date ? f.time || null : null, status: 'todo', subs: [], manual: true,
       series, rep: series ? repText(f) : undefined,
     }));
     save(); if (V.back === 'weekly') go(V.back, { w: V.w }); else go('home');
@@ -1499,7 +1465,6 @@ const IN = {
   },
 };
 const CH = {
-  ttime: (el) => { const w = el.dataset.w; S.weeks[w] = { ...(S.weeks[w] || {}), time: el.value.trim() }; save(); },
   date: (el) => { const x = task(V.id); x.date = el.value || null; if (x.date) x.week = weekOf(x.date); save(); toast(`הוזז: ${whenText(x)}`); },
   time: (el) => { const x = task(V.id); x.time = el.value || null; save(); if (x.date) toast(`הוזז: ${whenText(x)}`); },
   week: (el) => { const x = task(V.id); x.week = el.value; x.date = null; x.time = null; save(); toast(`הוזז: ${whenText(x)}`); },

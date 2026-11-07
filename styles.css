@@ -113,7 +113,6 @@ h2.serif.sm { font-size: 20px; margin-top: 8px; }
 .cell i { display: flex; gap: 2px; height: 6px; }
 .cell s { width: 6px; height: 6px; border-radius: 50%; }
 .cell.tdy span { font-weight: 700; }
-.cell.tog { box-shadow: inset 0 0 0 2px var(--pink); }
 .cell.sel { background: var(--ink); color: var(--bg); }
 
 /* אני */
@@ -236,13 +235,11 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .plan-top .dot { height: 30px; }
 .plan-days { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
 .plan-days button { min-height: 40px; border: 0; border-radius: 12px; background: var(--card); font-size: 14px; font-weight: 600; padding: 0; }
-.plan-days button.tog { box-shadow: inset 0 0 0 2px var(--pink); }
 .plan-days button.on { background: var(--ink); color: var(--bg); }
 .plan-days .later { background: transparent; color: var(--muted); font-size: 18px; }
 .load { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; text-align: center; font-size: 13px; color: var(--muted); }
 .load span { display: flex; flex-direction: column; background: var(--bg); border-radius: 10px; padding: 4px 0; }
 .load span.has { color: var(--ink); font-weight: 600; }
-.load span.tog { box-shadow: inset 0 0 0 2px var(--pink); }
 .claude-way summary { list-style: none; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
 .claude-way summary::-webkit-details-marker { display: none; }
 .claude-way[open] summary { margin-bottom: 12px; }
@@ -252,11 +249,6 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .card.changes p { font-size: 15px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .card.changes p:last-child { border: 0; padding: 0; }
 
-/* יום משותף בלו"ז */
-.tog-card { gap: 10px; }
-.tog-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-.tog-card .daypick button { background: var(--card); }
-.tog-card .daypick button.on { background: var(--ink); color: var(--bg); }
 
 /* מקפיא 2027 */
 .goal-actions { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
