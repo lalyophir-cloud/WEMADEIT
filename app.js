@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '7.11 · יום מסודר לפי צבעים';
+const VERSION = '9.11 · בחירת תאריך + לא שובץ';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -250,6 +250,18 @@ function go(name, params = {}) {
   window.scrollTo(0, back ? scrollMemo[viewKey(V)] || 0 : 0);
 }
 let toastTimer;
+// הודעה ועדכון של "מתי" בלי לרענן את המסך, כדי שבחירת התאריך או השעה לא תיסגר
+function movedQuietly(x) {
+  const w = document.querySelector('.when');
+  if (w) w.textContent = `📅 ${whenText(x)}`;
+  const old = document.querySelector('.toast');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.className = 'toast'; el.setAttribute('role', 'status'); el.textContent = `הוזז: ${whenText(x)}`;
+  app.appendChild(el);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.remove(), 2600);
+}
 function toast(msg) {
   ui.toast = msg; keepScroll();
   clearTimeout(toastTimer);
@@ -412,7 +424,7 @@ function viewWeek() {
   const w = V.w || weekOf(today());
   const wk = S.weeks[w] || {};
   const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(w, i));
-  const uns = S.tasks.filter((x) => !x.date && x.week === w);
+  const uns = S.tasks.filter((x) => !x.date && x.week === w && x.status !== 'done');
   // בשבוע הנוכחי מתחילים מהיום, ומעל הלו"ז מה שלא הושלם בזמן
   const past = w === weekOf(today()) ? days.filter((d) => d < today()) : [];
   const late = w === weekOf(today()) ? S.tasks.filter(isLate).sort((a, b) => (a.date || a.week).localeCompare(b.date || b.week)) : [];
@@ -895,7 +907,6 @@ const REPS = [['once', 'פעם אחת'], ['daily', 'כל יום'], ['days', 'ב�
 
 function viewAdd() {
   const f = ui.add || (ui.add = { title: V.title || '', area: AREAS[0].id, goal: V.g || '', rep: 'once', date: V.date || '', time: '', days: [], n: 3, start: V.w && V.w > today() ? V.w : today(), end: END, week: V.w || null });
-  const count = repeatDates(f).length;
   return `${topBack('חזרה', V.back || 'home')}
   <h1 class="serif">משימה חדשה</h1>
   <button class="pill light wide" data-act="go" data-v="paste">📋 ${t('יש לי משימות מ-Claude? {הדביקי|הדבק} כאן')}</button>
@@ -915,7 +926,7 @@ function viewAdd() {
       <div class="field"><label for="nstart">מתחילים מ</label><input id="nstart" type="date" value="${f.start}" data-in="add" data-f="start"></div>
       <div class="field"><label for="nend">עד</label><input id="nend" type="date" value="${f.end}" data-in="add" data-f="end"></div></div>
       ${f.rep !== 'weekly' ? `<div class="field"><label for="ntime2">שעה (לא חובה)</label><input id="ntime2" type="time" value="${f.time}" data-in="add" data-f="time"></div>` : ''}
-      <p class="count">${count ? `ייווצרו ${count} משימות, ${esc(repText(f))}` : 'עוד לא נבחר מתי'}</p>` : ''}
+      <p class="count" id="addcount">${countText(f)}</p>` : ''}
   </section>
   <button class="pill dark wide" data-act="addTask">הוספה</button>`;
 }
@@ -948,6 +959,11 @@ function repeatDates(f) {
     if (f.rep === 'daily' || f.days.includes(pd(d).getDay())) out.push({ date: d, week: weekOf(d) });
   }
   return out;
+}
+
+function countText(f) {
+  const count = repeatDates(f).length;
+  return count ? `ייווצרו ${count} משימות, ${esc(repText(f))}` : 'עוד לא נבחר מתי';
 }
 
 function repText(f) {
@@ -1455,7 +1471,8 @@ const IN = {
   paste: (el) => { ui.paste = el.value; },
   add: (el) => {
     ui.add[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value;
-    if (el.type === 'date') keepScroll();
+    // בלי לרענן את המסך: רענון סוגר את בחירת התאריך באייפון באמצע
+    if (el.type === 'date') { const c = document.getElementById('addcount'); if (c) c.innerHTML = countText(ui.add); }
     if (el.dataset.f === 'title') document.getElementById('dup').innerHTML = dupHtml(el.value);
   },
   // מעדכנים רק את התוצאות, כדי שהמקלדת לא תיסגר באמצע הקלדה
@@ -1466,8 +1483,8 @@ const IN = {
   },
 };
 const CH = {
-  date: (el) => { const x = task(V.id); x.date = el.value || null; if (x.date) x.week = weekOf(x.date); save(); toast(`הוזז: ${whenText(x)}`); },
-  time: (el) => { const x = task(V.id); x.time = el.value || null; save(); if (x.date) toast(`הוזז: ${whenText(x)}`); },
+  date: (el) => { const x = task(V.id); x.date = el.value || null; if (x.date) x.week = weekOf(x.date); save(); movedQuietly(x); },
+  time: (el) => { const x = task(V.id); x.time = el.value || null; save(); if (x.date) movedQuietly(x); },
   week: (el) => { const x = task(V.id); x.week = el.value; x.date = null; x.time = null; save(); toast(`הוזז: ${whenText(x)}`); },
 };
 
