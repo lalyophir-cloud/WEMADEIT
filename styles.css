@@ -285,3 +285,7 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--i
 .late-acts button.on { background: var(--ink); color: var(--bg); }
 .late-item .quick { padding-inline-start: 22px; }
 .late-item .quick button { background: #fff; min-height: 38px; font-size: 14px; }
+
+/* גרירה לסידור משימות ביום */
+.drag { border: 0; background: none; color: var(--muted); font-size: 18px; letter-spacing: -3px; width: 28px; min-height: 44px; padding: 0; flex-shrink: 0; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.trow.dragging { box-shadow: 0 8px 24px rgba(0,0,0,.18); transform: scale(1.02); position: relative; z-index: 5; }

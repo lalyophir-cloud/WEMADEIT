@@ -2,7 +2,7 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '9.11 · בחירת תאריך + לא שובץ';
+const VERSION = '11.11 · גרירה לסידור';
 const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
 let S = load();
 if (!S.remind) S.remind = { on: false };
@@ -58,7 +58,9 @@ const task = (id) => S.tasks.find((x) => x.id === id);
 const isLate = (x) => x.status !== 'done' && ((x.date && x.date < today()) || (!x.date && addDays(x.week, 6) < today()));
 // סדר משימות של יום: מה שבוצע יורד לסוף, משימות מאותו תחום (אותו צבע) אחת ליד השנייה, ובתוך תחום לפי שעה
 const areaIdx = (x) => AREAS.findIndex((a) => a.id === x.area);
-const byDay = (a, b) => Number(a.status === 'done') - Number(b.status === 'done') || areaIdx(a) - areaIdx(b) || (a.time || '99').localeCompare(b.time || '99');
+// סדר שנקבע בגרירה נשמר לתאריך מסוים; אם המשימה עברה ליום אחר, הוא לא חל שם
+const dragOrd = (x) => (x.ord && x.ord.d === x.date ? x.ord.i : 1e9);
+const byDay = (a, b) => Number(a.status === 'done') - Number(b.status === 'done') || dragOrd(a) - dragOrd(b) || areaIdx(a) - areaIdx(b) || (a.time || '99').localeCompare(b.time || '99');
 const pct = (list) => (list.length ? Math.round((list.filter((x) => x.status === 'done').length / list.length) * 100) : 0);
 const isStandalone = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 
@@ -329,6 +331,7 @@ function taskRow(x, opts = {}) {
   if (x.subs.length) meta.push(`${x.subs.filter((s) => s.done).length}/${x.subs.length} צעדים קטנים`);
   if (opts.extra) meta.push(opts.extra);
   return `<div class="trow${x.status === 'done' ? ' done' : ''}${late ? ' late' : ''}">
+    ${opts.drag ? `<button class="drag" data-drag="${x.id}" aria-label="גרירה לשינוי הסדר">⋮⋮</button>` : ''}
     <span class="dot" style="background:${a.color}"></span>
     <button class="tbody" data-act="open" data-id="${x.id}">
       <span class="ttl">${esc(x.title)}</span>
@@ -397,7 +400,7 @@ function viewHome() {
   </section>` : ''}
   <div class="sec-head"><h2 class="serif">מה הצעד הבא?</h2><span class="muted small">${todays.length ? `${todays.filter((x) => x.status === 'done').length}/${todays.length} היום` : ''}</span></div>
   ${todays.some((x) => x.status !== 'done') ? `<button class="link-row tight" data-act="remindMany" data-scope="day">🔔 כל המשימות של היום לתזכורות</button>` : ''}
-  ${todays.length ? `<div class="list">${todays.map((x) => taskRow(x, { remind: true })).join('')}</div>` : `<p class="empty">${S.tasks.length ? 'אין משימות להיום. יום חופשי, או זמן טוב לקדם משהו מהשבוע 🙂' : 'כשתהיה תוכנית, המשימות של היום יופיעו כאן.'}</p>`}
+  ${todays.length ? `<div class="list" data-day="${td}">${todays.map((x) => taskRow(x, { remind: true, drag: true })).join('')}</div>` : `<p class="empty">${S.tasks.length ? 'אין משימות להיום. יום חופשי, או זמן טוב לקדם משהו מהשבוע 🙂' : 'כשתהיה תוכנית, המשימות של היום יופיעו כאן.'}</p>`}
   ${unscheduled.length ? `<button class="link-row" data-act="go" data-v="week">עוד ${unscheduled.length} משימות השבוע שעוד לא שובצו ←</button>` : ''}`;
 }
 
@@ -431,7 +434,7 @@ function viewWeek() {
   const dayBlock = (d) => {
     const list = S.tasks.filter((x) => x.date === d).sort(byDay);
     return `<div class="day${d === today() ? ' is-today' : ''}"><div class="day-h"><b>${DAYS[pd(d).getDay()]}</b> <span>${short(d)}</span></div>
-    ${list.length ? `<div class="list">${list.map((x) => taskRow(x)).join('')}</div>` : '<p class="muted small pad">-</p>'}</div>`;
+    ${list.length ? `<div class="list" data-day="${d}">${list.map((x) => taskRow(x, { drag: true })).join('')}</div>` : '<p class="muted small pad">-</p>'}</div>`;
   };
   const inWeek = S.tasks.filter((x) => x.date && x.date >= w && x.date <= addDays(w, 6));
   const canPlan = w >= weekOf(today()) && !wk.planned;
@@ -477,7 +480,7 @@ function viewMonth() {
   </div>
   <div class="cal">${DAY_LETTERS.map((d) => `<span class="dow">${d}'</span>`).join('')}${cells.join('')}</div>
   <h2 class="serif sm">${fmtDay(sel)}</h2>
-  ${selList.length ? `<div class="list">${selList.map((x) => taskRow(x)).join('')}</div>` : '<p class="empty">אין משימות ביום הזה.</p>'}`;
+  ${selList.length ? `<div class="list" data-day="${sel}">${selList.map((x) => taskRow(x, { drag: true })).join('')}</div>` : '<p class="empty">אין משימות ביום הזה.</p>'}`;
 }
 
 // מספר השבוע בתוכנית (שבוע 1 = השבוע שבו נבנתה התוכנית)
@@ -1487,6 +1490,35 @@ const CH = {
   time: (el) => { const x = task(V.id); x.time = el.value || null; save(); if (x.date) movedQuietly(x); },
   week: (el) => { const x = task(V.id); x.week = el.value; x.date = null; x.time = null; save(); toast(`הוזז: ${whenText(x)}`); },
 };
+
+// גרירה של משימה בתוך יום: מחזיקים את הידית ⋮⋮ וגוררים למעלה או למטה
+let drag = null;
+app.addEventListener('pointerdown', (e) => {
+  const h = e.target.closest('[data-drag]');
+  if (!h) return;
+  e.preventDefault();
+  const row = h.closest('.trow');
+  drag = { row, list: row.parentElement, id: e.pointerId };
+  h.setPointerCapture(e.pointerId);
+  row.classList.add('dragging');
+});
+app.addEventListener('pointermove', (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const { row, list } = drag;
+  const next = [...list.children].find((c) => c !== row && e.clientY < c.getBoundingClientRect().top + c.offsetHeight / 2);
+  if (next) { if (next !== row.nextSibling) list.insertBefore(row, next); } else if (list.lastElementChild !== row) list.appendChild(row);
+  // קרוב לקצה המסך: גוללים
+  if (e.clientY < 90) window.scrollBy(0, -12); else if (e.clientY > window.innerHeight - 130) window.scrollBy(0, 12);
+});
+const endDrag = (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const day = drag.list.dataset.day;
+  [...drag.list.querySelectorAll('[data-drag]')].forEach((h, i) => { const x = task(h.dataset.drag); if (x) x.ord = { d: day, i }; });
+  drag.row.classList.remove('dragging');
+  drag = null; save(); keepScroll();
+};
+app.addEventListener('pointerup', endDrag);
+app.addEventListener('pointercancel', endDrag);
 
 app.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
