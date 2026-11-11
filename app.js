@@ -2,10 +2,10 @@ import { AREAS, SCHEDULE, USERS } from './questions.js';
 
 // ---------- שמירה ----------
 const KEY = 'wemadeit-v1';
-const VERSION = '11.11 · גרירה לסידור';
-const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, remind: { on: false }, frozen: [] });
+const VERSION = '12.11 · בלוקים ביום';
+const fresh = () => ({ user: null, answers: {}, qDone: false, goals: [], tasks: [], weeks: {}, planWeeks: null, seq: 1, frozen: [], blocks: [] });
 let S = load();
-if (!S.remind) S.remind = { on: false };
+if (!S.blocks) S.blocks = []; // בלוקים ביום (למשל "פסיכולוגית"): לא משימות ולא נספרים באחוזים
 if (!S.frozen) S.frozen = []; // משימות שהוקפאו ל-2027. שמורות בצד, כדי שלא יופיעו בשום מקום אחר
 function load() {
   try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY)) }; } catch (e) { return fresh(); }
@@ -60,6 +60,8 @@ const isLate = (x) => x.status !== 'done' && ((x.date && x.date < today()) || (!
 const areaIdx = (x) => AREAS.findIndex((a) => a.id === x.area);
 // סדר שנקבע בגרירה נשמר לתאריך מסוים; אם המשימה עברה ליום אחר, הוא לא חל שם
 const dragOrd = (x) => (x.ord && x.ord.d === x.date ? x.ord.i : 1e9);
+// כל מה שיושב ביום: משימות ובלוקים, בסדר שנקבע בגרירה
+const dayItems = (d) => [...S.tasks.filter((x) => x.date === d), ...S.blocks.filter((b) => b.date === d)].sort(byDay);
 const byDay = (a, b) => Number(a.status === 'done') - Number(b.status === 'done') || dragOrd(a) - dragOrd(b) || areaIdx(a) - areaIdx(b) || (a.time || '99').localeCompare(b.time || '99');
 const pct = (list) => (list.length ? Math.round((list.filter((x) => x.status === 'done').length / list.length) * 100) : 0);
 const isStandalone = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
@@ -272,7 +274,7 @@ function toast(msg) {
 
 function render() {
   if (!S.user) { app.innerHTML = viewWelcome(); return; }
-  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, chat: viewChat, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, remindSetup: viewRemind, paste: viewPaste, goal27: viewGoal27 };
+  const views = { home: viewHome, week: viewWeek, month: viewMonth, bank: viewBank, boost: viewBoost, chat: viewChat, me: viewMe, quest: viewQuest, plan: viewPlan, weekly: viewWeekly, task: viewTask, add: viewAdd, backup: viewBackup, paste: viewPaste, goal27: viewGoal27 };
   const tabs = ['home', 'week', 'month', 'bank', 'me'];
   const v = views[V.name] ? V.name : 'home';
   app.innerHTML = `<main class="screen${tabs.includes(v) ? ' has-nav' : ''}">${views[v]()}</main>${tabs.includes(v) ? nav(v) : ''}${ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : ''}`;
@@ -320,6 +322,14 @@ function ring(size = 260) {
   return `<div class="ring" style="width:${size}px;height:${size}px"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="התקדמות לפי תחומים">${segs}</svg><div class="ring-in"><b>${pct(S.tasks)}%</b><span>בדרך לסוף השנה</span></div></div>`;
 }
 
+function itemRow(x, opts = {}) {
+  if (!x.block) return taskRow(x, opts);
+  return `<div class="trow block-row"><button class="drag" data-drag="${x.id}" aria-label="גרירה לשינוי הסדר">⋮⋮</button>
+    <button class="tbody" data-act="blockEdit" data-id="${x.id}"><span class="ttl">${esc(x.title)}</span></button>
+    <button class="x" data-act="blockDel" data-id="${x.id}" aria-label="מחיקת הבלוק">×</button></div>`;
+}
+const addBlockLink = (d) => `<button class="link-row tight add-block" data-act="blockAdd" data-d="${d}">+ בלוק</button>`;
+
 function taskRow(x, opts = {}) {
   const a = area(x.area);
   const late = isLate(x);
@@ -337,7 +347,6 @@ function taskRow(x, opts = {}) {
       <span class="ttl">${esc(x.title)}</span>
       <span class="meta">${late ? '<em>נדחה</em> · ' : ''}${esc(meta.join(' · '))}</span>
     </button>
-    ${opts.remind && x.status !== 'done' ? `<button class="bell" data-act="remind" data-id="${x.id}" aria-label="להוסיף לתזכורות">🔔</button>` : ''}
     <button class="check s-${x.status}" data-act="toggle" data-id="${x.id}" aria-label="${x.status === 'done' ? 'לבטל סימון' : 'סימון כבוצע'}">${x.status === 'done' ? icon('check', 16) : ''}</button>
   </div>`;
 }
@@ -372,7 +381,8 @@ function viewHome() {
   const td = today();
   const step = nextStep();
   const late = S.tasks.filter(isLate);
-  const todays = S.tasks.filter((x) => x.date === td).sort(byDay);
+  const todays = dayItems(td);
+  const todayTasks = todays.filter((x) => !x.block);
   const wk = S.weeks[weekOf(td)] || {};
   const unscheduled = S.tasks.filter((x) => !x.date && x.week === weekOf(td) && x.status !== 'done');
   return `
@@ -398,9 +408,8 @@ function viewHome() {
     ${late.length > 1 ? `<p class="small">ועוד ${late.length - 1} משימות שנדחו</p>` : ''}
     <button class="pill dark" data-act="open" data-id="${late[0].id}" data-split="1">${t('{בואי|בוא}')} נפרק</button>
   </section>` : ''}
-  <div class="sec-head"><h2 class="serif">מה הצעד הבא?</h2><span class="muted small">${todays.length ? `${todays.filter((x) => x.status === 'done').length}/${todays.length} היום` : ''}</span></div>
-  ${todays.some((x) => x.status !== 'done') ? `<button class="link-row tight" data-act="remindMany" data-scope="day">🔔 כל המשימות של היום לתזכורות</button>` : ''}
-  ${todays.length ? `<div class="list" data-day="${td}">${todays.map((x) => taskRow(x, { remind: true, drag: true })).join('')}</div>` : `<p class="empty">${S.tasks.length ? 'אין משימות להיום. יום חופשי, או זמן טוב לקדם משהו מהשבוע 🙂' : 'כשתהיה תוכנית, המשימות של היום יופיעו כאן.'}</p>`}
+  <div class="sec-head"><h2 class="serif">מה הצעד הבא?</h2><span class="muted small">${todayTasks.length ? `${todayTasks.filter((x) => x.status === 'done').length}/${todayTasks.length} היום` : ''}</span></div>
+  ${todays.length ? `<div class="list" data-day="${td}">${todays.map((x) => itemRow(x, { drag: true })).join('')}</div>${addBlockLink(td)}` : `<p class="empty">${S.tasks.length ? 'אין משימות להיום. יום חופשי, או זמן טוב לקדם משהו מהשבוע 🙂' : 'כשתהיה תוכנית, המשימות של היום יופיעו כאן.'}</p>`}
   ${unscheduled.length ? `<button class="link-row" data-act="go" data-v="week">עוד ${unscheduled.length} משימות השבוע שעוד לא שובצו ←</button>` : ''}`;
 }
 
@@ -432,9 +441,9 @@ function viewWeek() {
   const past = w === weekOf(today()) ? days.filter((d) => d < today()) : [];
   const late = w === weekOf(today()) ? S.tasks.filter(isLate).sort((a, b) => (a.date || a.week).localeCompare(b.date || b.week)) : [];
   const dayBlock = (d) => {
-    const list = S.tasks.filter((x) => x.date === d).sort(byDay);
-    return `<div class="day${d === today() ? ' is-today' : ''}"><div class="day-h"><b>${DAYS[pd(d).getDay()]}</b> <span>${short(d)}</span></div>
-    ${list.length ? `<div class="list" data-day="${d}">${list.map((x) => taskRow(x, { drag: true })).join('')}</div>` : '<p class="muted small pad">-</p>'}</div>`;
+    const list = dayItems(d);
+    return `<div class="day${d === today() ? ' is-today' : ''}"><div class="day-h"><b>${DAYS[pd(d).getDay()]}</b> <span>${short(d)}</span>${addBlockLink(d)}</div>
+    ${list.length ? `<div class="list" data-day="${d}">${list.map((x) => itemRow(x, { drag: true })).join('')}</div>` : '<p class="muted small pad">-</p>'}</div>`;
   };
   const inWeek = S.tasks.filter((x) => x.date && x.date >= w && x.date <= addDays(w, 6));
   const canPlan = w >= weekOf(today()) && !wk.planned;
@@ -446,7 +455,6 @@ function viewWeek() {
     <span><b>${weekRange(w)}</b>${w === weekOf(today()) ? '<small>השבוע</small>' : ''}</span>
     <button class="round" data-act="week" data-w="${addDays(w, 7)}" aria-label="שבוע הבא">${icon('next', 20)}</button>
   </div>
-  ${inWeek.some((x) => x.status !== 'done' && x.date >= today()) ? `<button class="pill light wide" data-act="remindMany" data-scope="week" data-w="${w}">🔔 כל השבוע לתזכורות באייפון</button>` : ''}
   ${canPlan ? `<section class="card next"><span class="label">הצעד הבא</span><h2>לתכנן את השבוע</h2><p>${t('לשבץ את המשימות של השבוע לימים.')}</p><button class="pill dark" data-act="go" data-v="weekly" data-w="${w}">${t('{בואי|בוא} נתכנן')}</button></section>` : ''}
   ${late.length ? `<section class="late-sec"><div class="day-h"><b>לא הושלמו בזמן</b> <span>${lateGroups(late).length}</span></div><div class="list">${lateRows(lateGroups(late))}</div></section>` : ''}
   ${days.filter((d) => !past.includes(d)).map(dayBlock).join('')}
@@ -468,7 +476,7 @@ function viewMonth() {
     const list = monthTasks.filter((x) => x.date === day);
     cells.push(`<button class="cell${day === sel ? ' sel' : ''}${day === today() ? ' tdy' : ''}" data-act="day" data-d="${day}"><span>${d}</span><i>${list.slice(0, 3).map((x) => `<s style="background:${x.status === 'done' ? '#1C1B19' : area(x.area).color}"></s>`).join('')}</i></button>`);
   }
-  const selList = S.tasks.filter((x) => x.date === sel).sort(byDay);
+  const selList = dayItems(sel);
   const monthAll = S.tasks.filter((x) => (x.date || x.week).startsWith(m));
   return `
   <div class="sec-head"><h1 class="serif">לוח זמנים</h1></div>
@@ -480,7 +488,8 @@ function viewMonth() {
   </div>
   <div class="cal">${DAY_LETTERS.map((d) => `<span class="dow">${d}'</span>`).join('')}${cells.join('')}</div>
   <h2 class="serif sm">${fmtDay(sel)}</h2>
-  ${selList.length ? `<div class="list" data-day="${sel}">${selList.map((x) => taskRow(x, { drag: true })).join('')}</div>` : '<p class="empty">אין משימות ביום הזה.</p>'}`;
+  ${selList.length ? `<div class="list" data-day="${sel}">${selList.map((x) => itemRow(x, { drag: true })).join('')}</div>` : '<p class="empty">אין משימות ביום הזה.</p>'}
+  ${addBlockLink(sel)}`;
 }
 
 // מספר השבוע בתוכנית (שבוע 1 = השבוע שבו נבנתה התוכנית)
@@ -730,7 +739,6 @@ function viewMe() {
     <button class="pill light wide" data-act="go" data-v="quest">${S.qDone ? 'לעבור שוב על השאלון' : 'להמשיך את השאלון'}</button>
     ${S.qDone ? '<button class="pill light wide" data-act="go" data-v="plan">לבנות את התוכנית מחדש עם Claude</button>' : ''}
     <button class="pill light wide" data-act="go" data-v="weekly">תכנון שבועי</button>
-    <button class="pill light wide" data-act="go" data-v="remindSetup">🔔 תזכורות באייפון${S.remind.on ? ' ✓' : ''}</button>
     <button class="pill light wide" data-act="go" data-v="backup">גיבוי ושחזור</button>
   </div>
   <p class="muted small center">גרסה: ${VERSION}</p>
@@ -872,7 +880,7 @@ function viewTask() {
     ${g ? `<span class="small">מטרה: ${esc(g.title)}</span>` : ''}
     <span class="when">📅 ${esc(whenText(x))}</span>
     ${x.rep ? `<span class="small">🔁 חוזרת: ${esc(x.rep)}</span>` : ''}
-    <div class="btn-row"><button class="pill white" data-act="edit">✏️ עריכה</button>${x.status !== 'done' ? `<button class="pill white" data-act="remind" data-id="${x.id}">🔔 לתזכורות</button>` : ''}</div>
+    <div class="btn-row"><button class="pill white" data-act="edit">✏️ עריכה</button></div>
   </div>
   ${late ? `<div class="card late-card"><b>המשימה הזו נדחתה, וזה בסדר.</b><p>${t('אפשר להזיז אותה למטה, או לפרק אותה: מה הצעד הכי קטן שאפשר לעשות כבר היום?')}</p></div>` : ''}
   <section class="card move">
@@ -978,46 +986,6 @@ function repText(f) {
   if (f.rep === 'weekly') return `${f.n} ${f.n === 1 ? 'פעם' : 'פעמים'} בשבוע`;
   if (f.rep === 'monthly') return 'פעם בחודש';
   return '';
-}
-
-// התזכורות נכנסות דרך קיצור דרך באייפון בשם WEMADEIT. כל שורה: שם המשימה|תאריך (2026-10-24).
-// קיצורים לא קורא שעה מטקסט, אז הקיצור עצמו מוסיף 20 שעות לתאריך (ההתראה חייבת שעה).
-function openShortcut(lines) {
-  location.href = `shortcuts://run-shortcut?name=WEMADEIT&input=text&text=${encodeURIComponent(lines.join('\n'))}`;
-}
-function sendReminders(list) {
-  const open = list.filter((x) => x.status !== 'done' && x.date);
-  if (!open.length) { toast('אין כאן משימות עם תאריך'); return; }
-  openShortcut(open.map((x) => `${x.title.replace(/[|\n]/g, ' ')}|${x.date}`));
-}
-
-function viewRemind() {
-  const step = (txt) => `<li>${txt}</li>`;
-  return `${topBack('חזרה', 'me')}
-  <h1 class="serif">🔔 תזכורות באייפון</h1>
-  <p class="lead">${t('פעם אחת בונים קיצור דרך באפליקציה "קיצורים", ומאז כל משימה נכנסת לתזכורות ביום שלה, בלחיצה אחת. כל תזכורת נכנסת לשעה 20:00, כי האייפון לא מסכים לתאריך בלי שעה. אפשר לשלוח משימה אחת, את כל היום או את כל השבוע.')}</p>
-  ${S.remind.on ? `<div class="card together">✓ קיצור הדרך מחובר. הכפתורים 🔔 שולחים ישר לתזכורות.</div>` : ''}
-  <section class="card">
-    <h3>${t('איך בונים (בערך 5 דקות)')}</h3>
-    <p class="small muted">${t('השמות באייפון יכולים להיות קצת שונים. אם משהו לא מסתדר, {צלמי|צלם} מסך ו{שלחי|שלח} לי.')}</p>
-    <ol class="howto">
-      ${step('פותחים את האפליקציה <b>קיצורים</b> (Shortcuts) ולוחצים על <b>+</b> למעלה.')}
-      ${step('לוחצים על השם של הקיצור למעלה, בוחרים <b>שינוי שם</b> וכותבים בדיוק: <b>WEMADEIT</b>')}
-      ${step('בחיפוש למטה מקלידים <b>פיצול טקסט</b> (Split Text) ומוסיפים. לוחצים על המילה הכחולה <b>טקסט</b> ובוחרים <b>קלט קיצור הדרך</b> (Shortcut Input). אחר כך לוחצים על <b>רווחים</b> ובוחרים <b>שורות חדשות</b> (New Lines).')}
-      ${step('מחפשים <b>חזרה עם כל אחד</b> (Repeat with Each) ומוסיפים.')}
-      ${step('מוסיפים שוב <b>פיצול טקסט</b>, וגוררים אותו <b>לתוך</b> החזרה (בין "חזרה" ל"סיום החזרה"). צריך שיהיה כתוב בו <b>פריט חוזר</b> (Repeat Item). לוחצים על <b>שורות חדשות</b>, בוחרים <b>מותאם אישית</b> (Custom) ומקלידים את הסימן <b>|</b>')}
-      ${step('מוסיפים בתוך החזרה <b>קבלת פריט מרשימה</b> (Get Item from List), ומשאירים <b>פריט ראשון</b>. זה שם המשימה.')}
-      ${step('מוסיפים מתחתיו עוד <b>קבלת פריט מרשימה</b>. משנים ל<b>פריט אחרון</b> (Last Item). לוחצים על המשתנה הכחול שאחריו, <b>בחירת משתנה</b>, ובוחרים את <b>טקסט מפוצל</b> משלב 5. זה התאריך.')}
-      ${step('מוסיפים מתחתיו <b>קבלת תאריכים מהקלט</b> (Get Dates from Input), מ<b>פריט מהרשימה</b> משלב 7.')}
-      ${step('מוסיפים מתחתיו <b>הוספת תזכורת חדשה</b> (Add New Reminder). במקום הכותרת שמים את המשתנה <b>פריט מרשימה</b> משלב 6. לוחצים על החץ / <b>הצג עוד</b>, מדליקים <b>התראה</b> (Alert). זה השדה שבו התאריך נקבע. בתאריך שמים את <b>פריט מרשימה</b> משלב 7.')}
-      ${step('בין <b>קבלת תאריכים</b> לבין התזכורת מוסיפים <b>שינוי תאריך</b> (Adjust Date): <b>הוספה</b> של <b>20 שעות</b> ל<b>תאריכים</b>. ובתזכורת, אחרי "עם", שמים את <b>התאריך שהשתנה</b> (Adjusted Date).')}
-      ${step('לוחצים <b>סיום</b>, וחוזרים לכאן.')}
-    </ol>
-  </section>
-  <button class="pill dark wide" data-act="remindTest">${t('בניתי! {בואי|בוא} נבדוק')} 🎉</button>
-  <p class="small muted center">${t('הבדיקה יוצרת תזכורת אחת לדוגמה להיום. אם היא הופיעה בתזכורות, הכל עובד.')}</p>
-  <p class="small muted">${t('בלי התראות: הגדרות ← עדכונים ← תזכורות ← לכבות את "אפשר עדכונים". ככה המשימות מופיעות בתזכורות, אבל שום דבר לא קופץ.')}</p>
-  ${S.remind.on ? '<button class="pill light wide" data-act="remindOff">לנתק ולחזור לתפריט השיתוף</button>' : ''}`;
 }
 
 // משימות שמגיעות מצ'אט עם Claude: {"type":"wemadeit-add","tasks":[{"title","area","goal","dates":[...],"week"}]}
@@ -1285,6 +1253,20 @@ const ACT = {
     if (to) { x.date = to; x.week = weekOf(to); } else { x.date = null; x.time = null; x.week = addDays(weekOf(today()), 7); }
     ui.lateRe = null; save(); toast(`תוזמן מחדש: ${whenText(x)}`);
   },
+  blockAdd: (d) => {
+    const title = (prompt('מה הבלוק? (למשל: פסיכולוגית)') || '').trim();
+    if (!title) return;
+    // קודם מקבעים את הסדר הנוכחי של היום, ואז הבלוק נכנס בסוף
+    dayItems(d.d).forEach((x, i) => { x.ord = { d: d.d, i }; });
+    S.blocks.push({ id: uid('b'), block: true, title, date: d.d, ord: { d: d.d, i: 999 } });
+    save(); keepScroll();
+  },
+  blockEdit: (d) => {
+    const b = S.blocks.find((x) => x.id === d.id);
+    const title = (prompt('שם הבלוק', b.title) || '').trim();
+    if (title) { b.title = title; save(); keepScroll(); }
+  },
+  blockDel: (d) => { S.blocks = S.blocks.filter((x) => x.id !== d.id); save(); keepScroll(); },
   planDay: (d) => {
     const x = task(d.id);
     const g = x.group || x.id;
@@ -1385,29 +1367,6 @@ const ACT = {
   },
   subToggle: (d) => { const s = task(V.id).subs.find((y) => y.id === d.sid); s.done = !s.done; save(); if (s.done) toast('צעד קטן, ניצחון גדול ✨'); else render(); },
   subDel: (d) => { const x = task(V.id); x.subs = x.subs.filter((y) => y.id !== d.sid); save(); render(); },
-  remind: async (d) => {
-    const x = task(d.id);
-    if (S.remind.on) { sendReminders([x]); return; }
-    // בלי קיצור דרך: שולחים לתפריט השיתוף, ומשם בוחרים "תזכורות"
-    const text = `${x.title}${x.date ? ` (${x.date === today() ? 'היום' : fmtDay(x.date)})` : ''}`;
-    if (navigator.share) {
-      try { await navigator.share({ text }); } catch (e) { /* המשתמש ביטל */ }
-    } else {
-      const ok = await copyText(text);
-      toast(ok ? 'הועתק. אפשר להדביק בתזכורות' : 'לא הצלחתי להעתיק');
-    }
-  },
-  remindMany: (d) => {
-    if (!S.remind.on) { go('remindSetup'); return; }
-    const list = d.scope === 'day' ? S.tasks.filter((x) => x.date === today())
-      : S.tasks.filter((x) => x.date && x.date >= today() && weekOf(x.date) === d.w);
-    sendReminders(list);
-  },
-  remindTest: () => {
-    S.remind.on = true; save();
-    openShortcut([`בדיקה מ-WEMADEIT 🎉|${today()}`]);
-  },
-  remindOff: () => { S.remind.on = false; save(); render(); },
   edit: () => { ui.edit = true; render(); window.scrollTo(0, 0); },
   editCancel: () => { ui.edit = false; render(); },
   editSave: () => {
@@ -1513,7 +1472,7 @@ app.addEventListener('pointermove', (e) => {
 const endDrag = (e) => {
   if (!drag || e.pointerId !== drag.id) return;
   const day = drag.list.dataset.day;
-  [...drag.list.querySelectorAll('[data-drag]')].forEach((h, i) => { const x = task(h.dataset.drag); if (x) x.ord = { d: day, i }; });
+  [...drag.list.querySelectorAll('[data-drag]')].forEach((h, i) => { const x = task(h.dataset.drag) || S.blocks.find((b) => b.id === h.dataset.drag); if (x) x.ord = { d: day, i }; });
   drag.row.classList.remove('dragging');
   drag = null; save(); keepScroll();
 };
